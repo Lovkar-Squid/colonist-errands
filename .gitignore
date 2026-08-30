@@ -1,0 +1,12 @@
+# compiled output
+build/
+stubs/
+*.jar
+*.zip
+
+# third-party mod jars - NEVER commit (their licenses forbid redistribution)
+libs/
+old/
+
+# local scratch
+*.log
