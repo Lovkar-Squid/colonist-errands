@@ -15,7 +15,7 @@ public class ColonyReportAction extends PlayerFunctionAction {
     public ColonyReportAction() {
         super("colony_report",
                 "The player asks how the COLONY as a whole is doing ('how is the colony?', 'status report', "
-                        + "'kako je v koloniji?'). Returns real numbers: population, jobs, sick/hungry/homeless, "
+                        + "'how are things around here?'). Returns real numbers: population, jobs, sick/hungry/homeless, "
                         + "guards, raids, research and construction. Summarize it naturally in your own voice - "
                         + "lead with what matters most (dangers and problems first), don't read every number.");
     }

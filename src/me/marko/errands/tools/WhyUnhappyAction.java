@@ -16,7 +16,7 @@ public class WhyUnhappyAction extends PlayerFunctionAction {
     public WhyUnhappyAction() {
         super("why_unhappy",
                 "The player asks how happy YOU are or why you are unhappy ('are you happy here?', 'why are you "
-                        + "sad?', 'kaj te muči?'). Returns your REAL happiness score and the actual factors dragging "
+                        + "sad?', 'what is bothering you?'). Returns your REAL happiness score and the actual factors dragging "
                         + "it down (housing, food, security, health, job...). Voice them as your own honest feelings - "
                         + "complain about the bad ones, appreciate the good - and do NOT read raw factor names or numbers aloud.");
     }

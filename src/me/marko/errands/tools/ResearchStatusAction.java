@@ -22,7 +22,7 @@ public class ResearchStatusAction extends PlayerFunctionAction {
 
     public ResearchStatusAction() {
         super("research_status",
-                "The player asks about RESEARCH ('how is the research going?', 'kako kaže z raziskavami?'). "
+                "The player asks about RESEARCH ('how is the research going?', 'what are we researching?'). "
                         + "Returns the university level and every research in progress with its approximate "
                         + "completion percentage. Summarize naturally; mention that a level 3+ university lets "
                         + "researchers leverage time while the world is closed.");
