@@ -44,6 +44,26 @@ public abstract class CitizenNeedAssessorMixin {
                     }
                 } catch (Throwable ignored) {
                 }
+                // Lovkar's report: citizens walk up asking for food while carrying
+                // edible food, or while the restaurant has food to serve them.
+                // Self-solvable hunger (vanilla EatTask will handle it) is muted;
+                // "the colony has no food I may eat" still gets through.
+                try {
+                    if (!topics.contains("food") && citizen.getCitizenData().getSaturation() <= 3.0
+                            && me.lovkar.errands.FoodCheck.canResolveHungerAlone(citizen)) {
+                        topics.add("food");
+                    }
+                } catch (Throwable ignored) {
+                }
+                // Lovkar's report: the forester (and others) pester the player for
+                // tools the courier is ALREADY bringing - while their open request
+                // is actively being fulfilled, the stuck-job component is muted.
+                try {
+                    if (me.lovkar.errands.SupplyCheck.requestsUnderway(citizen)) {
+                        topics.add("supply");
+                    }
+                } catch (Throwable ignored) {
+                }
                 if (!topics.isEmpty()) {
                     double reduced = me.lovkar.errands.PromiseStore.suppressedUrgency(citizen, topics);
                     if (reduced < cir.getReturnValueD()) {

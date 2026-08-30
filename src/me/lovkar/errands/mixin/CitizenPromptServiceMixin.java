@@ -44,6 +44,27 @@ public abstract class CitizenPromptServiceMixin {
                 }
             } catch (Throwable ignored) {
             }
+            try {
+                // Lovkar's report: hungry citizens beg the player for food while
+                // carrying edible food / while the restaurant can serve them, and
+                // keep asking right after being handed some.
+                if (view != null) {
+                    block = block + me.lovkar.errands.FoodCheck.promptLine(view.name(), view.saturation());
+                }
+            } catch (Throwable ignored) {
+            }
+            try {
+                if (view != null) {
+                    block = block + me.lovkar.errands.SupplyCheck.promptLine(view.name());
+                }
+            } catch (Throwable ignored) {
+            }
+            try {
+                if (view != null) {
+                    block = block + me.lovkar.errands.GuardScore.promptLine(view.name());
+                }
+            } catch (Throwable ignored) {
+            }
             if (!block.isEmpty()) {
                 cir.setReturnValue(cir.getReturnValue() + block);
             }
