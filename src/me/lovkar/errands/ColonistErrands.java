@@ -25,6 +25,7 @@ import me.lovkar.errands.tools.FarmerPlantAction;
 import me.lovkar.errands.tools.FetchItemAction;
 import me.lovkar.errands.tools.FollowPlayerAction;
 import me.lovkar.errands.tools.GatherAtAction;
+import me.lovkar.errands.tools.GuardLeaderboardAction;
 import me.lovkar.errands.tools.GuardMeAction;
 import me.lovkar.errands.tools.LeaveConversationAction;
 import me.lovkar.errands.tools.NotifyWhenAction;
@@ -71,6 +72,7 @@ public class ColonistErrands {
             Map.entry("check_stock", RankGuard.GROUP_CHAT),
             Map.entry("make_promise", RankGuard.GROUP_CHAT),
             Map.entry("resolve_promise", RankGuard.GROUP_CHAT),
+            Map.entry("guard_leaderboard", RankGuard.GROUP_CHAT),
             Map.entry("call_me", RankGuard.GROUP_CHAT),
             // errands: everyday orders
             Map.entry("send_to_building", RankGuard.GROUP_ERRANDS),
@@ -114,11 +116,12 @@ public class ColonistErrands {
                     new CallCitizenAction(), new FindCitizenAction(), new ColonyReportAction(),
                     new WhyUnhappyAction(), new ResearchStatusAction(), new RedAlertAction(),
                     new TakeJobAction(), new DeliverItemAction(), new PatrolHereAction(),
-                    new MakePromiseAction(), new ResolvePromiseAction(), new NotePlayerConductAction())) {
+                    new MakePromiseAction(), new ResolvePromiseAction(), new NotePlayerConductAction(),
+                    new GuardLeaderboardAction())) {
                 String group = TOOL_GROUPS.get(action.getName());
                 map.put(action.getName(), group == null ? action : new RankGatedAction(action, group));
             }
-            LOGGER.info("[ColonistErrands] Registered tools (v2.0.0-alpha.1): 32 tools - v1.5 set plus call_citizen, find_citizen, "
+            LOGGER.info("[ColonistErrands] Registered tools (v2.0.0-alpha.10): 33 tools - v1.5 set plus call_citizen, find_citizen, "
                     + "colony_report, why_unhappy, research_status, red_alert, take_job, deliver_item, patrol_here, "
                     + "make_promise, resolve_promise, note_player_conduct; rank-gated per config");
         } catch (Throwable t) {
@@ -135,6 +138,8 @@ public class ColonistErrands {
         FamilyChats.tick(event.getServer());
         DeathWatcher.tick(event.getServer());
         PromiseWatcher.tick(event.getServer());
+        FetchQueue.tick(event.getServer());
+        GuardScore.tick(event.getServer());
         if (event.getServer().getTickCount() % 100 == 0) {
             try {
                 PromiseStore.setCurrentDay(event.getServer().overworld().getDayTime() / 24000L);
@@ -144,11 +149,35 @@ public class ColonistErrands {
     }
 
     @SubscribeEvent
+    public void onLivingDeath(net.neoforged.neoforge.event.entity.living.LivingDeathEvent event) {
+        try {
+            if (!event.getEntity().level().isClientSide()) {
+                GuardScore.onKill(event.getEntity(), event.getSource().getEntity());
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    @SubscribeEvent
+    public void onLivingDamaged(net.neoforged.neoforge.event.entity.living.LivingDamageEvent.Post event) {
+        try {
+            if (!event.getEntity().level().isClientSide()) {
+                GuardScore.onDamaged(event.getEntity(), event.getNewDamage());
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    @SubscribeEvent
     public void onServerStopped(ServerStoppedEvent event) {
         ErrandManager.clearAll();
         WatchManager.clearAll();
         BuilderAssist.clearAll();
         PromiseWatcher.clearAll();
+        FoodCheck.clearAll();
+        SupplyCheck.clearAll();
+        FetchQueue.clearAll();
+        GuardScore.saveNow();
         RaidWatcher.clearAll();
         DeathWatcher.clearAll();
         FamilyChats.clearAll();

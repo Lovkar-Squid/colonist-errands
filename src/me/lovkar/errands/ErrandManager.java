@@ -68,6 +68,8 @@ public final class ErrandManager {
         IBuilding destBuilding;              // DELIVER chain: final destination building
         AbstractEntityCitizen targetCitizen; // GUIDE: the citizen we lead the player to
         int collectedSoFar = 0;              // FETCH chain: items already gathered at previous warehouses
+        boolean bagsFull = false;            // FETCH chain: courier inventory ran out of room
+        boolean hutCapped = false;           // FETCH chain: stopped by the hut-level stack limit
         java.util.Set<BlockPos> visitedWarehouses; // FETCH chain: warehouses already emptied
 
         Errand(Kind kind, AbstractEntityCitizen citizen, BlockPos targetPos, String targetName,
@@ -576,13 +578,14 @@ public final class ErrandManager {
                             // Lovkar's "162 in stock but only got 54": check_stock counts ALL
                             // warehouses, the pickup only searched the nearest one. If still
                             // short, walk on to the next warehouse and keep gathering.
-                            if (collected < e.fetchCount) {
+                            if (collected < e.fetchCount && !e.bagsFull) {
                                 IBuilding next = nextWarehouse(e, citizen);
                                 if (next != null) {
                                     Errand cont = new Errand(Kind.FETCH_PICKUP, citizen, next.getPosition(), e.targetName,
                                             e.playerId, next, ARRIVE_BUILDING_SQ, 20 * 240, null, false,
                                             e.fetchItem, e.fetchCount);
                                     cont.collectedSoFar = collected;
+                                    cont.bagsFull = e.bagsFull;
                                     cont.destBuilding = e.destBuilding;
                                     cont.visitedWarehouses = e.visitedWarehouses != null
                                             ? e.visitedWarehouses : new java.util.HashSet<>();
@@ -741,9 +744,24 @@ public final class ErrandManager {
                 pl.sendSystemMessage(Component.literal("[Courier] " + safeName(e.citizen) + " only gathered "
                         + collected + " of the " + e.fetchCount + "x "
                         + e.fetchItem.getDescription().getString()
-                        + " (stock ran short or their bags are full) - bringing what they could."));
+                        + (e.hutCapped ? hutCapNote(e)
+                                : e.bagsFull ? " (their bags are FULL - even after stashing leftovers at the warehouse)"
+                                        : " (the stock ran short)")
+                        + " - bringing what they could."));
             }
         } catch (Throwable ignored) {
+        }
+    }
+
+    private static String hutCapNote(Errand e) {
+        try {
+            IBuilding wb = e.citizen.getCitizenData().getWorkBuilding();
+            int lvl = wb == null ? 1 : wb.getBuildingLevel();
+            int cap = (int) (Math.pow(2, lvl - 1) + 1);
+            return " (their Courier's Hut is level " + lvl + " - only " + cap
+                    + " stacks per trip, gear included; upgrade the hut for bigger hauls)";
+        } catch (Throwable t) {
+            return " (their courier hut level limits how many stacks they carry per trip)";
         }
     }
 
@@ -885,35 +903,97 @@ public final class ErrandManager {
         int collected = 0;
         try {
             IItemHandler citizenInv = e.citizen.getInventoryCitizen();
+            // Lovkar's "ordered 100, warehouse had plenty, courier brought 25":
+            // the courier's bags were already full of leftovers, so most of the
+            // pickup never fit. An idle courier's clutter belongs in the
+            // warehouse anyway - stash it into the racks to make room first.
+            stashLeftovers(e, citizenInv);
+            // Lovkar: how many STACKS a courier can haul per trip depends on their
+            // hut level - mirror the deliveryman AI's own rule: 2^(level-1)+1
+            // stacks (unlimited at max hut level); gear and food count too.
+            int stackCap = Integer.MAX_VALUE;
+            try {
+                IBuilding wb = e.citizen.getCitizenData().getWorkBuilding();
+                if (wb != null && wb.getBuildingLevel() < wb.getMaxBuildingLevel()) {
+                    stackCap = (int) (Math.pow(2, wb.getBuildingLevel() - 1) + 1);
+                }
+            } catch (Throwable ignored) {
+            }
             for (BlockPos rackPos : e.building.getContainers()) {
-                if (collected >= e.fetchCount) break;
+                if (collected >= e.fetchCount || e.hutCapped) break;
                 BlockEntity be = e.citizen.level().getBlockEntity(rackPos);
                 if (!(be instanceof AbstractTileEntityRack rack)) continue;
                 IItemHandler handler = rack.getItemHandlerCap();
                 if (handler == null) continue;
-                for (int slot = 0; slot < handler.getSlots() && collected < e.fetchCount; slot++) {
-                    ItemStack inSlot = handler.getStackInSlot(slot);
-                    if (inSlot.isEmpty() || inSlot.getItem() != e.fetchItem) continue;
-                    ItemStack extracted = handler.extractItem(slot, Math.min(e.fetchCount - collected, inSlot.getCount()), false);
-                    if (extracted.isEmpty()) continue;
-                    int took = extracted.getCount();
-                    ItemStack leftover = ItemHandlerHelper.insertItemStacked(citizenInv, extracted, false);
-                    if (!leftover.isEmpty()) {
-                        took -= leftover.getCount();
-                        ItemStack back = handler.insertItem(slot, leftover, false);
-                        if (!back.isEmpty()) {
-                            // Citizen inventory AND rack full - drop it so nothing is voided.
-                            e.citizen.spawnAtLocation(back);
+                for (int slot = 0; slot < handler.getSlots() && collected < e.fetchCount && !e.hutCapped; slot++) {
+                    // Drain the slot until it is empty or we have enough - a single
+                    // extractItem call is capped at one stack by the handler.
+                    while (collected < e.fetchCount) {
+                        if (com.minecolonies.api.util.InventoryUtils.getAmountOfStacksInItemHandler(citizenInv) >= stackCap) {
+                            e.bagsFull = true;
+                            e.hutCapped = true;
+                            break;
                         }
+                        ItemStack inSlot = handler.getStackInSlot(slot);
+                        if (inSlot.isEmpty() || inSlot.getItem() != e.fetchItem) break;
+                        ItemStack extracted = handler.extractItem(slot, Math.min(e.fetchCount - collected, inSlot.getCount()), false);
+                        if (extracted.isEmpty()) break;
+                        int took = extracted.getCount();
+                        ItemStack leftover = ItemHandlerHelper.insertItemStacked(citizenInv, extracted, false);
+                        if (!leftover.isEmpty()) {
+                            took -= leftover.getCount();
+                            ItemStack back = handler.insertItem(slot, leftover, false);
+                            if (!back.isEmpty()) {
+                                // Citizen inventory AND rack full - drop it so nothing is voided.
+                                e.citizen.spawnAtLocation(back);
+                            }
+                            e.bagsFull = true;
+                        }
+                        collected += took;
+                        if (took <= 0) break;
                     }
-                    collected += took;
-                    if (took > 0 && collected >= e.fetchCount) break;
                 }
             }
         } catch (Throwable t) {
             ColonistErrands.LOGGER.warn("pickupFromWarehouse failed", t);
         }
         return collected;
+    }
+
+    /** Before a big pickup, an idle courier (no delivery queue) stashes their
+     *  leftover clutter into the warehouse racks - everything except the fetched
+     *  item itself, gear (anything damageable: tools/weapons/armor) and food. */
+    private static void stashLeftovers(Errand e, IItemHandler citizenInv) {
+        try {
+            var data = e.citizen.getCitizenData();
+            if (data == null) return;
+            if (data.getJob() instanceof com.minecolonies.core.colony.jobs.JobDeliveryman dman
+                    && (dman.getCurrentTask() != null || !dman.getTaskQueue().isEmpty())) {
+                return; // carrying real delivery cargo - never touch it
+            }
+            for (int slot = 0; slot < citizenInv.getSlots(); slot++) {
+                ItemStack inSlot = citizenInv.getStackInSlot(slot);
+                if (inSlot.isEmpty() || inSlot.getItem() == e.fetchItem || inSlot.isDamageableItem()
+                        || com.minecolonies.api.util.ItemStackUtils.ISFOOD.test(inSlot)) {
+                    continue;
+                }
+                ItemStack pulled = citizenInv.extractItem(slot, inSlot.getCount(), false);
+                if (pulled.isEmpty()) continue;
+                ItemStack rest = pulled;
+                for (BlockPos rackPos : e.building.getContainers()) {
+                    if (rest.isEmpty()) break;
+                    BlockEntity be = e.citizen.level().getBlockEntity(rackPos);
+                    if (!(be instanceof AbstractTileEntityRack rack)) continue;
+                    IItemHandler handler = rack.getItemHandlerCap();
+                    if (handler == null) continue;
+                    rest = ItemHandlerHelper.insertItemStacked(handler, rest, false);
+                }
+                if (!rest.isEmpty()) {
+                    ItemHandlerHelper.insertItemStacked(citizenInv, rest, false); // racks full - keep it
+                }
+            }
+        } catch (Throwable ignored) {
+        }
     }
 
     /** Hands the fetched items over to the player. */

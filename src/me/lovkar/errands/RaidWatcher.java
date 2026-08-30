@@ -315,6 +315,7 @@ public final class RaidWatcher {
             ColonistErrands.LOGGER.warn("Raid direction calc failed", t);
         }
         ColonistErrands.LOGGER.info("[Alarm] Raid on colony {} from the {}", colony.getID(), dirName);
+        GuardScore.raidStart(colony.getID());
         broadcast(server, "[Alarm] RAID on " + colonyName(colony) + "! Attackers are coming from the "
                 + dirName.toUpperCase() + "!");
 
@@ -382,6 +383,13 @@ public final class RaidWatcher {
         RAID_DIR.remove(colony.getID());
         PINNED_EVENT.remove(colony.getID());
         broadcast(server, "[Alarm] The raid on " + colonyName(colony) + " is over - the colony held!");
+        try {
+            String mvp = GuardScore.raidMvp(colony.getID());
+            if (mvp != null) {
+                broadcast(server, mvp);
+            }
+        } catch (Throwable ignored) {
+        }
         if (AUTO_DEFENSE.remove(colony.getID())) {
             int n = ErrandManager.standDownDefense(colony.getID());
             if (n > 0) {

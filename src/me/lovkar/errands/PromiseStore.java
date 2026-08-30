@@ -328,10 +328,12 @@ public final class PromiseStore {
                 if (hp < 25.0) weight += 1.0;
                 else if (hp < 50.0) weight += 0.4;
             }
-            // "stuck job" component is intentionally NEVER suppressed - a stuck
-            // worker is a real technical problem no promise fixes.
+            // "stuck job" is a real technical problem no promise fixes - EXCEPT
+            // when the request system is actively delivering what they wait for
+            // ("supply"): then the stuck complaint pauses until deliveries stop.
             try {
-                if (data.getJobStatus() == com.minecolonies.api.entity.ai.JobStatus.STUCK) {
+                if (!topics.contains("supply")
+                        && data.getJobStatus() == com.minecolonies.api.entity.ai.JobStatus.STUCK) {
                     weight += stuckMultiplier();
                 }
             } catch (Throwable ignored) {
