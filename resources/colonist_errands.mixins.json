@@ -15,6 +15,7 @@
     "McTalkingVoicechatPluginMixin",
     "CitizenConversationMixin",
     "RandomConversationHandlerMixin",
-    "ItemAssistantHammerMixin"
+    "ItemAssistantHammerMixin",
+    "BlockHutTavernMixin"
   ]
 }
