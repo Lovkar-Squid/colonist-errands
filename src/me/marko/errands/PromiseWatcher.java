@@ -18,8 +18,8 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Marko's report: "obljubil sem guard tower, zgradil sem ga - pa ni
- * registriral". Promises used to close ONLY when the player TOLD the citizen
+ * Marko's report: "I promised a guard tower, then built it - and nothing
+ * registered". Promises used to close ONLY when the player TOLD the citizen
  * (model calls resolve_promise). This watcher makes the colony NOTICE on its
  * own that a promise came true:
  *  - a building whose name appears in the promise text gets BUILT/upgraded
