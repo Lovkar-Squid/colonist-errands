@@ -16,6 +16,7 @@ Copy these from a working modpack instance (e.g. `<instance>/mods/` and the vers
 - FML: `loader-*.jar`, `bus-*.jar`, `sponge-mixin-*.jar` (from the NeoForge libraries folder)
 - Minecraft client jar (mojmap/official names, e.g. the `client-extra`/versions jar of your instance)
 - `gson.jar`, `slf4j-api.jar`, JetBrains `annotations.jar`
+- optional: `mctradepost-*.jar` (MC Trade Post) — only needed to compile the marketplace/economy code paths
 
 None of these jars are redistributed in this repository - bring your own.
 
@@ -28,7 +29,8 @@ javac -encoding UTF-8 --release 21 -proc:none \
       $(find src -name '*.java')
 ```
 
-`stubsrc/` contains two tiny compile-only stubs (`com.mojang.brigadier.Message`,
+`stubsrc/` contains four tiny compile-only stubs (`com.mojang.authlib.GameProfile`,
+`com.mojang.brigadier.Message`, `com.mojang.serialization.Keyable`,
 `dev.isxander.yacl3.api.NameableEnum`) for classes that exist at runtime but are awkward to put on
 the compile classpath. Compile them into `stubs/` first if you don't have that folder yet:
 
@@ -45,7 +47,7 @@ jar cf colonist_errands-<version>.jar -C build . -C resources .
 ```
 
 That's the whole build. The jar contains the compiled classes, `META-INF/neoforge.mods.toml`,
-and `colonist_errands.mixins.json` (9 mixins, `remap=false` - all targets are mod classes with
+and `colonist_errands.mixins.json` (11 mixins, `remap=false` - all targets are mod classes with
 stable names).
 
 ## Notes for porting to new dependency versions
@@ -56,3 +58,12 @@ bumping either dependency, re-verify the touched members exist with `javap -c` b
 getPlayerForEntity`, `GeminiStream` buffer fields, `PregenerationPlayback.ACTIVE_PREGENERATED_PLAYBACK`,
 `CitizenPromptService.generate*` signatures, and the MineColonies module/settings APIs used in
 `ErrandBuildings`, `GuardSettings` and `TakeJobAction`.
+
+The watchdogs read MineColonies internals that are easy to miss when porting:
+`AbstractEntityCitizen.getEntityStateController()` (the `CitizenAIState` enum),
+`AbstractAISkeleton.getState()` / `AIWorkerState.isOkayToEat()`, `ICitizenData.isIdleAtJob()`,
+`BedHandlingModule.onBlockPlacedInBuilding/removeBed`, `BuildingHospital.registerBlockPosition`,
+`IColony.getWorkManager().getWorkOrders()`, `IBuilding.createRequest` plus
+`IRequestManager.getRequestForToken`, and `ICitizenSkillHandler.addXpToSkill`. `IRequest.getDeliveries()`
+returns a Guava `ImmutableList`, so it is read reflectively rather than pulling Guava onto the
+compile classpath.
