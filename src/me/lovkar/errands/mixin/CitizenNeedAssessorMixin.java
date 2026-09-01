@@ -27,6 +27,13 @@ public abstract class CitizenNeedAssessorMixin {
                 cir.setReturnValue(0.0);
                 return;
             }
+            // Lovkar's report: a colonist with a hello ready for the player runs
+            // over before they get to say it. If the player is standing right
+            // there and a greeting is queued, the greeting IS the contact.
+            if (me.lovkar.errands.GreetingCheck.aboutToGreet(citizen)) {
+                cir.setReturnValue(0.0);
+                return;
+            }
             // Lovkar's idea #23: an open, not-overdue promise makes the citizen
             // PATIENT about the promised problem - no more walking up to nag
             // every few minutes. Overdue or resolved -> normal pestering resumes.
@@ -39,7 +46,17 @@ public abstract class CitizenNeedAssessorMixin {
                 // handled - mute it until they are cured (flag clears on cure).
                 try {
                     var dh = citizen.getCitizenData().getCitizenDiseaseHandler();
-                    if (dh != null && dh.sleepsAtHospital() && (dh.isSick() || dh.isHurt())) {
+                    // Round two: sleepsAtHospital() only turns true once they are
+                    // already in a bed, so patients on their way there kept walking
+                    // off to complain. The hospital's own patient file covers the
+                    // whole stay, from admission to cure.
+                    // Round three: they still walked up mid-treatment. underCare
+                    // only becomes true once a bed was actually found, and a
+                    // hospital with no usable bed never gets them there - so the
+                    // mute never applied to the very patients who needed it. Being
+                    // ill at all is reason enough not to cross the colony to
+                    // complain; if the player asks, they can still say it.
+                    if (dh != null && (dh.isSick() || dh.isHurt())) {
                         topics.add("health");
                     }
                 } catch (Throwable ignored) {

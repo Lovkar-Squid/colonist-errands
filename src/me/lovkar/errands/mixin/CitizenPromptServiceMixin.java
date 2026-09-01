@@ -62,6 +62,50 @@ public abstract class CitizenPromptServiceMixin {
             try {
                 if (view != null) {
                     block = block + me.lovkar.errands.GuardScore.promptLine(view.name());
+                    block = block + me.lovkar.errands.GuardGearCheck.promptLine(view.name());
+                }
+            } catch (Throwable ignored) {
+            }
+            try {
+                // Lovkar's idea: the colony's dead are remembered by name, and the
+                // ones who died fighting are spoken of as brave.
+                if (view != null) {
+                    block = block + me.lovkar.errands.Fallen.promptBlock(view.name());
+                }
+            } catch (Throwable ignored) {
+            }
+            try {
+                // Lovkar's idea: the university's work is the colony's shared story -
+                // colonists know what is on the benches and what was just finished.
+                if (view != null) {
+                    block = block + me.lovkar.errands.ResearchWatcher.promptBlock(view.name());
+                }
+            } catch (Throwable ignored) {
+            }
+            try {
+                // Lovkar's report: housed colonists still talked as if they slept in
+                // the mud - a level 1 house scores 0.33 on MineColonies' housing
+                // factor and gets described as a shack.
+                if (view != null) {
+                    block = block + me.lovkar.errands.HomeCheck.promptLine(view.name());
+                }
+            } catch (Throwable ignored) {
+            }
+            try {
+                // Lovkar's report: "good morning" in the evening.
+                if (view != null) {
+                    block = block + me.lovkar.errands.TimeOfDay.promptLine(view.currentGameTimeTicks());
+                }
+            } catch (Throwable ignored) {
+            }
+            try {
+                // Lovkar's report: a builder said she was stuck on a residence
+                // while standing on a half-finished kitchen.
+                if (view != null) {
+                    block = block + me.lovkar.errands.BuildWatch.promptLine(view.name());
+                    block = block + me.lovkar.errands.BedCheck.promptLine(view.name());
+                    block = block + me.lovkar.errands.ConstructionWatcher.promptBlock(view.name());
+                    block = block + me.lovkar.errands.ColonyMap.promptBlock(view.name());
                 }
             } catch (Throwable ignored) {
             }
