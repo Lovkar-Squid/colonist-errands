@@ -41,6 +41,14 @@ public final class RaidWatcher {
     private static final Set<Long> HANDLED_RAID_EVENTS = new HashSet<>(); // colonyId<<32 | eventId
     private static final Map<Integer, Long> PINNED_EVENT = new HashMap<>(); // colony -> pinpointed event key
     private static final Set<Integer> AUTO_DEFENSE = new HashSet<>(); // colonies whose line WE formed
+    /** Colonies whose raid state we have already sampled once this session. */
+    private static final Set<Integer> PRIMED = new HashSet<>();
+    /** colonyId -> consecutive 30 s checks with the raid flag up but NO raider alive. */
+    private static final Map<Integer, Integer> GHOST_RAID = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final int GHOST_CHECKS_BEFORE_CLOSING = 10; // 10 x 30 s = 5 minutes
+    /** colonyId -> when our line went up, so a raid that never resolves cannot pin the guards forever. */
+    private static final Map<Integer, Long> DEFENSE_SINCE = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final long LINE_MAX_MS = 20 * 60_000L;
     private static int tickCounter = 0;
 
     private RaidWatcher() {
@@ -70,6 +78,18 @@ public final class RaidWatcher {
                 } catch (Throwable t) {
                     continue;
                 }
+                // A raid that is still running when the world loads (pirates
+                // stuck out at sea keep isRaided() true forever) must not be
+                // announced as if it had just started - seed the state silently
+                // on the first pass and only react to real changes after that.
+                if (!PRIMED.contains(id)) {
+                    PRIMED.add(id);
+                    RAIDED.put(id, raided);
+                    if (raided) {
+                        ColonistErrands.LOGGER.info("[Alarm] Colony {} loaded with a raid already in progress - no new alarm", id);
+                    }
+                    continue;
+                }
                 boolean was = RAIDED.getOrDefault(id, false);
                 if (raided && !was) {
                     onRaidStart(server, colony);
@@ -77,6 +97,54 @@ public final class RaidWatcher {
                     onRaidEnd(server, colony);
                 }
                 RAIDED.put(id, raided);
+
+                // Lovkar's pirate raid stayed "active" with every pirate dead and
+                // /mc kill raider reporting 0 entities. A SHIP raid counts as
+                // active while its spawners, raiders OR respawns are non-empty -
+                // the ship parked offshore kept the event alive forever, and with
+                // it the alarm, the defense line and the whole colony's nerves.
+                // So: raid flag up, not a single raider alive anywhere for five
+                // minutes -> close the event ourselves, exactly the way
+                // MineColonies' own kill command closes it.
+                try {
+                    if (raided && tickCounter % 600 == 0) {
+                        int alive = countRaiders(colony);
+                        if (alive == 0) {
+                            int n = GHOST_RAID.merge(id, 1, Integer::sum);
+                            if (n >= GHOST_CHECKS_BEFORE_CLOSING) {
+                                GHOST_RAID.remove(id);
+                                closeStuckRaid(server, colony);
+                            }
+                        } else if (alive > 0) {
+                            GHOST_RAID.remove(id);
+                        }
+                    } else if (!raided) {
+                        GHOST_RAID.remove(id);
+                    }
+                } catch (Throwable ignored) {
+                }
+
+                // Lovkar's pirate raid never ended (raiders stuck out at sea), so
+                // the line stayed up and the whole guard force was pinned to the
+                // shore. A line is a temporary order, never a life sentence.
+                try {
+                    Long since = DEFENSE_SINCE.get(id);
+                    if (since != null && ErrandManager.hasActiveDefense(id)
+                            && System.currentTimeMillis() - since > LINE_MAX_MS) {
+                        int n = ErrandManager.standDownDefense(id);
+                        AUTO_DEFENSE.remove(id);
+                        DEFENSE_SINCE.remove(id);
+                        if (n > 0) {
+                            broadcast(server, "[Alarm] The line at " + colonyName(colony) + " has held for twenty minutes - "
+                                    + "the guards are going back to their normal patrols. If attackers are still out there "
+                                    + "(pirates like to sit on their ship), the towers cover the colony better on patrol.");
+                            ColonistErrands.LOGGER.info("[Defense] Line timed out after 20 min - {} tower(s) released", n);
+                        }
+                    } else if (since != null && !ErrandManager.hasActiveDefense(id)) {
+                        DEFENSE_SINCE.remove(id);
+                    }
+                } catch (Throwable ignored) {
+                }
 
                 // Lovkar's fix: ordering the line only AFTER raiders spawn is too
                 // late (marching takes minutes, combat AI overrides posts). The
@@ -150,6 +218,8 @@ public final class RaidWatcher {
                     int placed = formLineToward(colony, out, dirName);
                     if (placed > 0) {
                         AUTO_DEFENSE.add(colony.getID());
+                DEFENSE_SINCE.put(colony.getID(), System.currentTimeMillis());
+                        DEFENSE_SINCE.put(colony.getID(), System.currentTimeMillis());
                         broadcast(server, "[Alarm] " + placed + " guard tower(s) are forming a defensive line at "
                                 + colonyName(colony) + "'s " + dirName + " border!");
                     }
@@ -194,6 +264,7 @@ public final class RaidWatcher {
         RAID_VEC.remove(colony.getID());
         RAID_DIR.remove(colony.getID());
         broadcast(server, "[Alarm] The raiders turned back - no attack on " + colonyName(colony) + " after all. Stand easy.");
+        DEFENSE_SINCE.remove(colony.getID());
         if (AUTO_DEFENSE.remove(colony.getID())) {
             int n = ErrandManager.standDownDefense(colony.getID());
             if (n > 0) {
@@ -260,11 +331,13 @@ public final class RaidWatcher {
                     int k = (placed + 1) / 2 * ((placed % 2 == 0) ? 1 : -1);
                     int postX = ax + (int) Math.round(px * spacing * k);
                     int postZ = az + (int) Math.round(pz * spacing * k);
-                    int postY;
-                    try {
-                        postY = colony.getWorld().getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, postX, postZ);
-                    } catch (Throwable t) {
-                        postY = colony.getCenter().getY();
+                    // Lovkar's pirate raid: posts computed from the colony bounds
+                    // landed in the SEA and the guards drowned walking to them.
+                    BlockPos post = ErrandManager.safePost(colony.getWorld(), postX, postZ);
+                    if (post == null) {
+                        ColonistErrands.LOGGER.info("[Defense] No dry ground near {},{} - leaving one tower on its normal task",
+                                postX, postZ);
+                        continue;
                     }
                     GuardTaskSetting s = tower.getSetting(AbstractBuildingGuards.GUARD_TASK);
                     if (s == null) continue;
@@ -272,7 +345,8 @@ public final class RaidWatcher {
                     if (!GuardSettings.set(s, GuardTaskSetting.GUARD)) {
                         continue; // this tower doesn't offer GUARD - skip, never break its setting
                     }
-                    tower.setGuardPos(new BlockPos(postX, postY, postZ));
+                    tower.setGuardPos(post);
+                    ErrandManager.rallyTo(tower, post, colony.getWorld());
                     try {
                         tower.markDirty();
                     } catch (Throwable ignored) {
@@ -289,6 +363,46 @@ public final class RaidWatcher {
             ColonistErrands.LOGGER.warn("formLineToward failed", t);
         }
         return placed;
+    }
+
+    /** How many MineColonies raiders are alive in this world; -1 when we cannot tell. */
+    private static int countRaiders(IColony colony) {
+        try {
+            if (!(colony.getWorld() instanceof net.minecraft.server.level.ServerLevel level)) {
+                return -1;
+            }
+            return level.getEntities(
+                    net.minecraft.world.level.entity.EntityTypeTest.forClass(
+                            com.minecolonies.api.entity.mobs.AbstractEntityMinecoloniesRaider.class),
+                    e -> e.isAlive()).size();
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    /** Marks every still-"active" raid event DONE, which is what finally ends it. */
+    private static void closeStuckRaid(MinecraftServer server, IColony colony) {
+        int ended = 0;
+        try {
+            for (com.minecolonies.api.colony.colonyEvents.IColonyEvent ev
+                    : colony.getEventManager().getEvents().values()) {
+                if (ev instanceof com.minecolonies.api.colony.colonyEvents.IColonyRaidEvent raid
+                        && raid.isRaidActive()) {
+                    ev.setStatus(com.minecolonies.api.colony.colonyEvents.EventStatus.DONE);
+                    ended++;
+                }
+            }
+        } catch (Throwable t) {
+            ColonistErrands.LOGGER.warn("[Alarm] Could not close a stuck raid", t);
+            return;
+        }
+        if (ended > 0) {
+            ColonistErrands.LOGGER.info("[Alarm] Closed {} stuck raid event(s) in colony {} - no raider alive for five minutes",
+                    ended, colony.getID());
+            broadcast(server, "[Alarm] Not an attacker left standing near " + colonyName(colony)
+                    + " - the watch is calling the raid over. (Their ship may still be sitting offshore; "
+                    + "it cannot hurt anyone now.)");
+        }
     }
 
     private static void onRaidStart(MinecraftServer server, IColony colony) {
@@ -390,6 +504,7 @@ public final class RaidWatcher {
             }
         } catch (Throwable ignored) {
         }
+        DEFENSE_SINCE.remove(colony.getID());
         if (AUTO_DEFENSE.remove(colony.getID())) {
             int n = ErrandManager.standDownDefense(colony.getID());
             if (n > 0) {
@@ -429,5 +544,8 @@ public final class RaidWatcher {
         RAID_DIR.clear();
         HANDLED_RAID_EVENTS.clear();
         AUTO_DEFENSE.clear();
+        DEFENSE_SINCE.clear();
+        PRIMED.clear();
+        GHOST_RAID.clear();
     }
 }

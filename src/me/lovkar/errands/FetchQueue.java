@@ -183,6 +183,12 @@ public final class FetchQueue {
         }
     }
 
+    /** A courier we may hand work to right now: a fully idle one, else the least busy. */
+    public static AbstractEntityCitizen dispatchableCourier(IColony colony) {
+        AbstractEntityCitizen free = freeCourier(colony);
+        return free != null ? free : leastBusyCourier(colony);
+    }
+
     /** First courier in the colony with truly nothing on their hands. */
     private static AbstractEntityCitizen freeCourier(IColony colony) {
         try {
@@ -264,6 +270,57 @@ public final class FetchQueue {
             }
         } catch (Throwable ignored) {
         }
+    }
+
+    /** Spoken-ready summary of one colony's board (Lovkar: the board was a black box). */
+    public static String describe(int colonyId) {
+        StringBuilder sb = new StringBuilder();
+        int n = 0;
+        long now = System.currentTimeMillis();
+        try {
+            for (Order o : QUEUE) {
+                if (o.colonyId != colonyId) continue;
+                n++;
+                long ageMin = Math.max(0, (now - o.createdMs) / 60_000L);
+                sb.append(n).append(") ").append(o.count).append("x ")
+                        .append(o.item.getDescription().getString())
+                        .append(o.destName == null
+                                ? " for " + o.playerName
+                                : " to the " + o.destName + " (ordered by " + o.playerName + ")")
+                        .append(ageMin <= 0 ? " - just placed. " : " - waiting " + ageMin + " min. ");
+            }
+        } catch (Throwable ignored) {
+        }
+        if (n == 0) {
+            return "The couriers' board is EMPTY right now - no queued orders waiting in this colony.";
+        }
+        return n + (n == 1 ? " order is" : " orders are") + " on the couriers' board: " + sb
+                + "A free courier takes the next one; after a minute the least busy courier squeezes it in. "
+                + "Orders expire after 30 minutes.";
+    }
+
+    /**
+     * Cancels queued orders. Restricted to the asking player's own orders unless
+     * {@code playerId} is null. A null item cancels all of them.
+     */
+    public static int cancel(int colonyId, UUID playerId, Item item) {
+        int removed = 0;
+        try {
+            Iterator<Order> it = QUEUE.iterator();
+            while (it.hasNext()) {
+                Order o = it.next();
+                if (o.colonyId != colonyId) continue;
+                if (playerId != null && !playerId.equals(o.playerId)) continue;
+                if (item != null && o.item != item) continue;
+                it.remove();
+                removed++;
+            }
+            if (removed > 0) {
+                ColonistErrands.LOGGER.info("[Courier] {} queued order(s) cancelled by the player", removed);
+            }
+        } catch (Throwable ignored) {
+        }
+        return removed;
     }
 
     public static void clearAll() {

@@ -46,7 +46,10 @@ public final class C2cAudioFollower {
         final LocationalAudioChannel channel;
         final List<AbstractEntityCitizen> participants;
         boolean walkingChat;       // both are WALKER professions: chat on the move, no freezing
+        boolean stationary;        // they talk from where they stand - never walked together
         boolean everTogether;      // they met at least once - safety splits apply only after this
+        /** When mc_talking marked the conversation ENDED - audio can still be draining. */
+        long endedAtMs = 0;
         final long startedAt = System.currentTimeMillis();
 
         Entry(CitizenConversation conversation, LocationalAudioChannel channel,
@@ -65,8 +68,41 @@ public final class C2cAudioFollower {
     private static final double INITIAL_MAX_DIST_SQR = 64.0 * 64.0; // pair may start far apart - they walk to meet
     private static final double WALKING_DRIFT_SQR = 12.0 * 12.0;    // walking pair diverging -> stop and finish standing
     private static final long MAX_AGE_MS = 10 * 60_000;
+    /**
+     * Lovkar: "sometimes a voice still talks from an empty spot." Citizen-to-citizen
+     * chats use a LOCATIONAL channel, which - unlike the entity channel mc_talking
+     * uses for player conversations - does not follow anybody by itself; we move it
+     * ourselves each tick. The moment the conversation reported ENDED we used to
+     * drop the entry and stop moving it, while the stream was still draining its
+     * last buffered audio. The pair then walked off and the tail played on at the
+     * spot where they had been standing. So we keep following for a short tail
+     * after the end, and only then let go.
+     */
+    private static final long TAIL_MS = 20_000;
     private static final long PARTNER_MEMORY_MS = 3 * 60_000;
+    /** pair -> expiry: a caller asked for this pair to talk WITHOUT walking together. */
+    private static final Map<Long, Long> STATIONARY_HINT = new ConcurrentHashMap<>();
     private static Field fState;
+
+    /**
+     * Lovkar's two marketplaces face each other across a street. Two shopkeepers
+     * there should call across to each other, not abandon their counters to stand
+     * nose to nose - so a caller can declare a pair stationary just before the
+     * conversation starts, and the chaperone will only turn them to face one
+     * another.
+     */
+    public static void expectStationary(AbstractEntityCitizen a, AbstractEntityCitizen b) {
+        try {
+            STATIONARY_HINT.put(pairKey(a, b), System.currentTimeMillis() + 15_000L);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static long pairKey(AbstractEntityCitizen a, AbstractEntityCitizen b) {
+        int x = Math.min(a.getId(), b.getId());
+        int y = Math.max(a.getId(), b.getId());
+        return ((long) x << 32) | (y & 0xFFFFFFFFL);
+    }
 
     /** Called from CitizenConversationMixin the moment the locational channel is created. */
     public static void register(Object conversation, LocationalAudioChannel channel, List<AbstractEntityCitizen> participants) {
@@ -85,13 +121,27 @@ public final class C2cAudioFollower {
                 break;
             }
         }
-        ENTRIES.add(new Entry(cc, channel, new ArrayList<>(participants), walking));
+        Entry entry = new Entry(cc, channel, new ArrayList<>(participants), walking);
+        if (participants.size() == 2) {
+            try {
+                Long until = STATIONARY_HINT.remove(pairKey(participants.get(0), participants.get(1)));
+                entry.stationary = until != null && until > System.currentTimeMillis();
+            } catch (Throwable ignored) {
+            }
+        }
+        ENTRIES.add(entry);
         rememberPartners(participants);
         ColonistErrands.LOGGER.info("[C2C] Chaperoning conversation ({} participants, {})", participants.size(),
-                walking ? "walking chat - they stroll together" : "they will stand together while talking");
+                entry.stationary ? "stationary - they talk from where they stand"
+                        : walking ? "walking chat - they stroll together"
+                        : "they will stand together while talking");
     }
 
     public static void tick(MinecraftServer server) {
+        if (!STATIONARY_HINT.isEmpty() && server.getTickCount() % 600 == 0) {
+            long cutoff = System.currentTimeMillis();
+            STATIONARY_HINT.entrySet().removeIf(en -> en.getValue() < cutoff);
+        }
         if (ENTRIES.isEmpty()) {
             return;
         }
@@ -99,9 +149,20 @@ public final class C2cAudioFollower {
         long now = System.currentTimeMillis();
         for (Entry e : ENTRIES) {
             try {
-                if (now - e.startedAt > MAX_AGE_MS || isEnded(e.conversation)) {
+                if (now - e.startedAt > MAX_AGE_MS) {
                     ENTRIES.remove(e);
                     continue;
+                }
+                boolean draining = false;
+                if (isEnded(e.conversation)) {
+                    if (e.endedAtMs == 0) {
+                        e.endedAtMs = now;
+                    }
+                    if (now - e.endedAtMs > TAIL_MS) {
+                        ENTRIES.remove(e);
+                        continue;
+                    }
+                    draining = true; // keep the channel on them until the audio runs out
                 }
                 List<AbstractEntityCitizen> alive = new ArrayList<>(2);
                 for (AbstractEntityCitizen c : e.participants) {
@@ -113,14 +174,23 @@ public final class C2cAudioFollower {
                     abortQuietly(e, "all participants gone");
                     continue;
                 }
-                if (alive.size() >= 2) {
+                if (alive.size() >= 2 && !draining) {
                     AbstractEntityCitizen a = alive.get(0);
                     AbstractEntityCitizen b = alive.get(1);
                     double d2 = a.distanceToSqr(b);
                     if (d2 <= TOGETHER_DIST_SQR) {
                         e.everTogether = true;
                     }
-                    if (!e.everTogether) {
+                    if (e.stationary) {
+                        // Calling across the street: never walk them together, just
+                        // turn them to face each other and let the audio follow.
+                        if (d2 > SPLIT_DIST_SQR) {
+                            abortQuietly(e, "stationary pair moved apart");
+                            continue;
+                        }
+                        freeze(a, b);
+                        freeze(b, a);
+                    } else if (!e.everTogether) {
                         // The pair may be picked far apart (handler scans around the
                         // player) - first bring them together, never insta-abort.
                         if (d2 > INITIAL_MAX_DIST_SQR) {
@@ -157,10 +227,25 @@ public final class C2cAudioFollower {
                         freeze(b, a);
                     }
                 }
-                if (tickCount % 5 == 0) {
-                    AbstractEntityCitizen anchor = alive.get(0);
+                {
+                    // Lovkar: "the voice follows one colonist and you hear BOTH of
+                    // them from there." mc_talking gives a conversation ONE audio
+                    // stream on ONE locational channel - both characters' lines are
+                    // in it, and nothing tells us who is speaking at any moment, so
+                    // the voices cannot be split. Anchoring on the first participant
+                    // made both come out of one head. The midpoint at least places
+                    // the conversation BETWEEN them, which is where it is happening.
+                    double x = 0;
+                    double y = 0;
+                    double z = 0;
+                    for (AbstractEntityCitizen c : alive) {
+                        x += c.getX();
+                        y += c.getY();
+                        z += c.getZ();
+                    }
+                    int n = alive.size();
                     e.channel.updateLocation(McTalkingVoicechatPlugin.vcApi.createPosition(
-                            anchor.getX(), anchor.getY() + 1.5, anchor.getZ()));
+                            x / n, y / n + 1.5, z / n));
                 }
             } catch (Throwable t) {
                 ENTRIES.remove(e);
@@ -293,6 +378,11 @@ public final class C2cAudioFollower {
             }
             if (ErrandManager.hasErrand(citizen)) {
                 return false; // mid-errand (fetching, delivering, guiding...) - never chat
+            }
+            // A patient under the healer's care stays put: no wandering off across
+            // the colony for a chat while they are supposed to be resting.
+            if (HospitalCheck.underCare(citizen)) {
+                return false;
             }
             if (data.getJob() instanceof com.minecolonies.core.colony.jobs.AbstractJobGuard) {
                 if (ErrandManager.isOnMilitaryDuty(citizen)) {

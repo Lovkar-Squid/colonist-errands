@@ -24,6 +24,8 @@ import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.neoforged.neoforge.items.IItemHandler;
 import net.neoforged.neoforge.items.ItemHandlerHelper;
 
@@ -339,6 +341,67 @@ public final class ErrandManager {
     // ---------------------------------------------------------------- defense
 
     /** @return previous task of the building (for info), registering it for stand-down. */
+    /**
+     * Lovkar's pirate raid: guards posted on a defense line walked into the sea
+     * and DROWNED, because a line computed from the colony bounds happily lands
+     * on water. Snap every post to a dry, solid spot near it - and when there is
+     * none within a dozen blocks, the caller skips that tower rather than
+     * marching its guards into the waves.
+     */
+    public static BlockPos safePost(Level level, int x, int z) {
+        try {
+            for (int r = 0; r <= 14; r += 2) {
+                for (int i = 0; i < (r == 0 ? 1 : 8); i++) {
+                    double a = Math.PI * 2 * i / 8.0;
+                    int cx = x + (int) Math.round(Math.cos(a) * r);
+                    int cz = z + (int) Math.round(Math.sin(a) * r);
+                    int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, cx, cz);
+                    for (int dy = 0; dy >= -4; dy--) {
+                        BlockPos feet = new BlockPos(cx, y + dy, cz);
+                        if (standable(level, feet)) {
+                            return feet;
+                        }
+                    }
+                }
+            }
+        } catch (Throwable t) {
+            ColonistErrands.LOGGER.warn("safePost failed", t);
+        }
+        return null;
+    }
+
+    /** Dry feet, dry head, free space and solid ground underneath. */
+    private static boolean standable(Level level, BlockPos feet) {
+        try {
+            BlockPos head = feet.above();
+            BlockPos ground = feet.below();
+            if (!level.getFluidState(feet).isEmpty()) return false;
+            if (!level.getFluidState(head).isEmpty()) return false;
+            if (!level.getFluidState(ground).isEmpty()) return false;
+            if (!level.getBlockState(feet).getCollisionShape(level, feet).isEmpty()) return false;
+            if (!level.getBlockState(head).getCollisionShape(level, head).isEmpty()) return false;
+            return !level.getBlockState(ground).getCollisionShape(level, ground).isEmpty();
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    /**
+     * Hold the post the way MineColonies' own rally banner does. A plain GUARD
+     * post only lets a guard engage within getPersecutionDistance() - 10 blocks
+     * for archers, 30 for knights - which is exactly why Lovkar's line "watched
+     * the pirates walk past". A rally location lifts that to 30 for EVERY guard,
+     * makes them glow, and stops them being pulled off mid-fight.
+     */
+    public static void rallyTo(AbstractBuildingGuards tower, BlockPos post, Level level) {
+        try {
+            tower.setRallyLocation(new com.minecolonies.core.colony.requestsystem.locations.StaticLocation(
+                    post, level.dimension()));
+        } catch (Throwable t) {
+            ColonistErrands.LOGGER.warn("rallyTo failed", t);
+        }
+    }
+
     public static synchronized void registerDefense(AbstractBuildingGuards building, String previousTask) {
         DEFENSE.add(new DefenseEntry(building, previousTask));
         defenseAge = 0;
@@ -385,6 +448,10 @@ public final class ErrandManager {
                 continue;
             }
             try {
+                try {
+                    d.building.setRallyLocation(null); // release the rally hold
+                } catch (Throwable ignored) {
+                }
                 GuardTaskSetting s = d.building.getSetting(AbstractBuildingGuards.GUARD_TASK);
                 if (s != null) {
                     String prev = d.previousTask;

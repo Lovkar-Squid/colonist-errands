@@ -16,6 +16,15 @@ import me.lovkar.errands.tools.TakeJobAction;
 import me.lovkar.errands.tools.WhyUnhappyAction;
 import me.lovkar.errands.tools.CallMeAction;
 import me.lovkar.errands.tools.CheckStockAction;
+import me.lovkar.errands.tools.CourierBoardAction;
+import me.lovkar.errands.tools.GuardGearAction;
+import me.lovkar.errands.tools.MintCoinsAction;
+import me.lovkar.errands.tools.ArmGuardsAction;
+import me.lovkar.errands.tools.BuildStatusAction;
+import me.lovkar.errands.tools.PrioritizeAction;
+import me.lovkar.errands.tools.RememberFallenAction;
+import me.lovkar.errands.tools.RequestCraftAction;
+import me.lovkar.errands.tools.TradeStatusAction;
 import me.lovkar.errands.tools.CitizenReportAction;
 import me.lovkar.errands.tools.ComeHereAction;
 import me.lovkar.errands.tools.DefendHereAction;
@@ -73,6 +82,9 @@ public class ColonistErrands {
             Map.entry("make_promise", RankGuard.GROUP_CHAT),
             Map.entry("resolve_promise", RankGuard.GROUP_CHAT),
             Map.entry("guard_leaderboard", RankGuard.GROUP_CHAT),
+            Map.entry("trade_status", RankGuard.GROUP_CHAT),
+            Map.entry("remember_fallen", RankGuard.GROUP_CHAT),
+            Map.entry("build_status", RankGuard.GROUP_CHAT),
             Map.entry("call_me", RankGuard.GROUP_CHAT),
             // errands: everyday orders
             Map.entry("send_to_building", RankGuard.GROUP_ERRANDS),
@@ -88,6 +100,8 @@ public class ColonistErrands {
             Map.entry("notify_when", RankGuard.GROUP_ERRANDS),
             Map.entry("back_to_work", RankGuard.GROUP_ERRANDS),
             Map.entry("call_citizen", RankGuard.GROUP_ERRANDS),
+            Map.entry("request_craft", RankGuard.GROUP_ERRANDS),
+            Map.entry("courier_board", RankGuard.GROUP_ERRANDS),
             Map.entry("dismiss", RankGuard.GROUP_ERRANDS),
             // military: defense & alarms
             Map.entry("guard_me", RankGuard.GROUP_MILITARY),
@@ -96,8 +110,12 @@ public class ColonistErrands {
             Map.entry("everyone_home", RankGuard.GROUP_MILITARY),
             Map.entry("red_alert", RankGuard.GROUP_MILITARY),
             Map.entry("patrol_here", RankGuard.GROUP_MILITARY),
+            Map.entry("guard_gear", RankGuard.GROUP_MILITARY),
+            Map.entry("arm_guards", RankGuard.GROUP_MILITARY),
             // jobs: colony management
-            Map.entry("take_job", RankGuard.GROUP_JOBS));
+            Map.entry("take_job", RankGuard.GROUP_JOBS),
+            Map.entry("mint_coins", RankGuard.GROUP_JOBS),
+            Map.entry("prioritize", RankGuard.GROUP_JOBS));
             // leave_conversation and note_player_conduct are NEVER gated.
 
     @SuppressWarnings("unchecked")
@@ -117,13 +135,16 @@ public class ColonistErrands {
                     new WhyUnhappyAction(), new ResearchStatusAction(), new RedAlertAction(),
                     new TakeJobAction(), new DeliverItemAction(), new PatrolHereAction(),
                     new MakePromiseAction(), new ResolvePromiseAction(), new NotePlayerConductAction(),
-                    new GuardLeaderboardAction())) {
+                    new GuardLeaderboardAction(), new RequestCraftAction(), new CourierBoardAction(),
+                    new GuardGearAction(), new TradeStatusAction(), new MintCoinsAction(),
+                    new RememberFallenAction(), new ArmGuardsAction(), new PrioritizeAction(),
+                    new BuildStatusAction())) {
                 String group = TOOL_GROUPS.get(action.getName());
                 map.put(action.getName(), group == null ? action : new RankGatedAction(action, group));
             }
-            LOGGER.info("[ColonistErrands] Registered tools (v2.0.0-alpha.10): 33 tools - v1.5 set plus call_citizen, find_citizen, "
-                    + "colony_report, why_unhappy, research_status, red_alert, take_job, deliver_item, patrol_here, "
-                    + "make_promise, resolve_promise, note_player_conduct; rank-gated per config");
+            LOGGER.info("[ColonistErrands] Registered tools (v2.0.0-beta.36): 42 tools - the alpha.10 set plus "
+                    + "request_craft, courier_board, guard_gear, trade_status, mint_coins, remember_fallen, "
+                    + "arm_guards, prioritize, build_status; rank-gated per config");
         } catch (Throwable t) {
             LOGGER.error("[ColonistErrands] Failed to register AI tools - the mc_talking internals may have changed", t);
         }
@@ -136,9 +157,17 @@ public class ColonistErrands {
         RaidWatcher.tick(event.getServer());
         C2cAudioFollower.tick(event.getServer());
         FamilyChats.tick(event.getServer());
+        ShopChats.tick(event.getServer());
         DeathWatcher.tick(event.getServer());
         PromiseWatcher.tick(event.getServer());
         FetchQueue.tick(event.getServer());
+        CraftWatch.tick(event.getServer());
+        Fallen.tick(event.getServer());
+        ResearchWatcher.tick(event.getServer());
+        BuildWatch.tick(event.getServer());
+        BedCheck.tick(event.getServer());
+        ConstructionWatcher.tick(event.getServer());
+        RestartNudge.tick(event.getServer());
         GuardScore.tick(event.getServer());
         if (event.getServer().getTickCount() % 100 == 0) {
             try {
@@ -153,6 +182,7 @@ public class ColonistErrands {
         try {
             if (!event.getEntity().level().isClientSide()) {
                 GuardScore.onKill(event.getEntity(), event.getSource().getEntity());
+                Fallen.onDeath(event.getEntity(), event.getSource(), event.getEntity().getServer());
             }
         } catch (Throwable ignored) {
         }
@@ -163,6 +193,7 @@ public class ColonistErrands {
         try {
             if (!event.getEntity().level().isClientSide()) {
                 GuardScore.onDamaged(event.getEntity(), event.getNewDamage());
+                GuardScore.onDamageDealt(event.getEntity(), event.getSource().getEntity(), event.getNewDamage());
             }
         } catch (Throwable ignored) {
         }
@@ -177,9 +208,19 @@ public class ColonistErrands {
         FoodCheck.clearAll();
         SupplyCheck.clearAll();
         FetchQueue.clearAll();
+        CraftWatch.clearAll();
+        Fallen.clearAll();
+        ResearchWatcher.clearAll();
+        HomeCheck.clearAll();
+        HospitalCheck.clearAll();
+        BuildWatch.clearAll();
+        BedCheck.clearAll();
+        ConstructionWatcher.clearAll();
+        RestartNudge.clearAll();
         GuardScore.saveNow();
         RaidWatcher.clearAll();
         DeathWatcher.clearAll();
         FamilyChats.clearAll();
+        ShopChats.clearAll();
     }
 }
