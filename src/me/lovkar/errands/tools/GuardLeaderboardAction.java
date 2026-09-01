@@ -21,7 +21,7 @@ public class GuardLeaderboardAction extends PlayerFunctionAction {
                 "The player asks about the GUARD LEADERBOARD, the best guard, guard scores or kill counts "
                         + "('who is my best guard?', 'show me the guard leaderboard', 'how are the guards ranking?'). "
                         + "Returns the top guards with their combat scores (raider kills 15 pts, monster kills 10, "
-                        + "minus damage taken). Announce it with flair, like a tournament herald - names and points, "
+                        + "minus damage taken, capped at half of what they earned). Announce it with flair, like a tournament herald - names and points, "
                         + "not a dry list. Optional 'sidebar': true shows the live leaderboard on everyone's screen, "
                         + "false hides it ('put the leaderboard on screen' / 'hide the leaderboard').",
                 (Property) new ObjectProperty(new HashMap<String, Property>() {{
