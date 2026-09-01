@@ -12,6 +12,7 @@
     "GeminiWsClientMixin",
     "CitizenNeedAssessorMixin",
     "PregenerationPlaybackMixin",
+    "PregenerationTaskServiceMixin",
     "McTalkingVoicechatPluginMixin",
     "CitizenConversationMixin",
     "RandomConversationHandlerMixin",
