@@ -17,6 +17,7 @@
     "CitizenConversationMixin",
     "RandomConversationHandlerMixin",
     "ItemAssistantHammerMixin",
-    "BlockHutTavernMixin"
+    "BlockHutTavernMixin",
+    "ConversationManagerMixin"
   ]
 }
