@@ -142,7 +142,7 @@ public class ColonistErrands {
                 String group = TOOL_GROUPS.get(action.getName());
                 map.put(action.getName(), group == null ? action : new RankGatedAction(action, group));
             }
-            LOGGER.info("[ColonistErrands] Registered tools (v2.0.0-beta.42): 42 tools - the alpha.10 set plus "
+            LOGGER.info("[ColonistErrands] Registered tools (v2.0.0): 42 tools - the alpha.10 set plus "
                     + "request_craft, courier_board, guard_gear, trade_status, mint_coins, remember_fallen, "
                     + "arm_guards, prioritize, build_status; rank-gated per config");
         } catch (Throwable t) {
