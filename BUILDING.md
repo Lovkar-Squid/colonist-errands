@@ -47,7 +47,7 @@ jar cf colonist_errands-<version>.jar -C build . -C resources .
 ```
 
 That's the whole build. The jar contains the compiled classes, `META-INF/neoforge.mods.toml`,
-and `colonist_errands.mixins.json` (11 mixins, `remap=false` - all targets are mod classes with
+and `colonist_errands.mixins.json` (12 mixins, `remap=false` - all targets are mod classes with
 stable names).
 
 ## Notes for porting to new dependency versions

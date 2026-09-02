@@ -50,7 +50,8 @@ gossip about players' manners and reliability, and answer to configurable rank p
 (by default guests can chat but only Officers may order job changes or military actions).
 
 **Colony life** — citizens chat with each other standing together or strolling (per-profession
-policy), family members talk *as* family, marketplace staff talk shop when no customer is around,
+policy), family members talk *as* family, three colonists standing together hold a round-robin
+huddle, marketplace staff talk shop when no customer is around,
 births are celebrated, deaths are mourned and the fallen are remembered by name, and helping
 builders with the Assistant Hammer earns you their gratitude. When a building goes up or gains a
 level, the people who live, work or built there react to it.
@@ -69,10 +70,10 @@ hospital beds blocked from above are named; a worker whose restart has been pend
 nudged through it.
 
 **Audio fixes** — no doubled goodbyes, interruptible pre-generated clips with true barge-in
-semantics, citizen-to-citizen audio that follows the speakers and keeps following to the end of the
-last sentence, self-learning blocklist for TTS voices the Gemini API rejects (no more permanently
-mute citizens), and a fix for citizen memories being lost when the model wraps JSON in markdown
-fences.
+semantics, citizen-to-citizen audio that follows the speakers, sessions that are drained before they
+are closed so no sentence is cut short, small talk that never evicts a running conversation, a
+self-learning blocklist for TTS voices the Gemini API rejects (no more permanently mute citizens),
+and a fix for citizen memories being lost when the model wraps JSON in markdown fences.
 
 ## Requirements
 
@@ -81,6 +82,7 @@ fences.
 - **MineColonies 1.1.1300+**
 - Simple Voice Chat (required by Talking Colonists) and a microphone
 - **MC Trade Post** is optional — the marketplace and economy features simply stay quiet without it
+- **MineColonies Compatibility** is optional — a linked *Common Network Storage* counts as warehouse stock
 
 In multiplayer only the **host/server** needs the API key; clients just install the same mods.
 
@@ -90,7 +92,7 @@ Files appear in `config/` after first launch:
 
 | File | Purpose |
 |---|---|
-| `colonist_errands_settings.properties` | general switches (watchdogs, chat broadcasts, colony chatter) |
+| `colonist_errands_settings.properties` | general switches: `max_taverns`, `group_chats` |
 | `colonist_errands_permissions.properties` | which colony rank may voice-command what (chat/errands/military/jobs, per-tool overrides) |
 | `colonist_errands_aliases.properties` | per-player "call me X" nicknames |
 | `colonist_errands_promises.json` | promise storage (per maker) |
