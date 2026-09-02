@@ -69,13 +69,7 @@ public class DefendHereAction extends PlayerFunctionAction {
         }
 
         List<AbstractBuildingGuards> towers = new ArrayList<>();
-        int minX = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE, minZ = Integer.MAX_VALUE, maxZ = Integer.MIN_VALUE;
         for (IBuilding b : colony.getServerBuildingManager().getBuildings().values()) {
-            BlockPos p = b.getPosition();
-            minX = Math.min(minX, p.getX());
-            maxX = Math.max(maxX, p.getX());
-            minZ = Math.min(minZ, p.getZ());
-            maxZ = Math.max(maxZ, p.getZ());
             if (b instanceof AbstractBuildingGuards g) {
                 towers.add(g);
             }
@@ -85,10 +79,6 @@ public class DefendHereAction extends PlayerFunctionAction {
             result.addProperty("error", "This colony has no guard towers.");
             return result;
         }
-
-        int margin = 8;
-        int cx = (minX + maxX) / 2;
-        int cz = (minZ + maxZ) / 2;
 
         // Outward unit vector for the chosen direction (null = 'here' mode).
         double[] out = switch (direction) {
@@ -114,14 +104,22 @@ public class DefendHereAction extends PlayerFunctionAction {
         double px, pz; // unit vector ALONG the defensive line
         String where;
         if (out != null) {
-            int ax = out[0] > 0.3 ? maxX + margin : out[0] < -0.3 ? minX - margin : cx;
-            int az = out[1] > 0.3 ? maxZ + margin : out[1] < -0.3 ? minZ - margin : cz;
-            anchor = new BlockPos(ax, player.blockPosition().getY(), az);
-            px = -out[1];
-            pz = out[0];
             where = direction.equals("raid")
                     ? "toward the raid (coming from the " + me.lovkar.errands.RaidWatcher.raidDirName(colony) + ")"
                     : "the " + me.lovkar.errands.RaidWatcher.dirName8(out[0], out[1]) + " border";
+            // Just past the outermost building in that direction, between any known
+            // raid spawn and the colony, pulled back from water - see DefenseLine.
+            int[] a = me.lovkar.errands.DefenseLine.anchor(colony, out,
+                    direction.equals("raid") ? me.lovkar.errands.RaidWatcher.raidSpawn(colony) : null, towers.size());
+            if (a == null) {
+                result.addProperty("success", false);
+                result.addProperty("error", "Every spot for a line at " + where + " is WATER - guards would drown out there. "
+                        + "Ask the player for another border, or to stand where the line should be and say 'here'.");
+                return result;
+            }
+            anchor = new BlockPos(a[0], player.blockPosition().getY(), a[1]);
+            px = -out[1];
+            pz = out[0];
         } else {
             anchor = player.blockPosition();
             BlockPos center = colony.getCenter();
@@ -137,7 +135,7 @@ public class DefendHereAction extends PlayerFunctionAction {
             pz = dx / len;
             where = "the player's position";
         }
-        int spacing = 4;
+        int spacing = me.lovkar.errands.DefenseLine.SPACING;
 
         int placed = 0;
         int skippedWet = 0;
