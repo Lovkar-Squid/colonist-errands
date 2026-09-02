@@ -38,6 +38,8 @@ public final class RaidWatcher {
     private static final Map<Integer, Long> WARNED_DAY = new HashMap<>();   // colony -> MC day already warned
     private static final Map<Integer, double[]> RAID_VEC = new HashMap<>();
     private static final Map<Integer, String> RAID_DIR = new HashMap<>();
+    /** colonyId -> where the raiders appear(ed); bounds the defensive line so it stands between them and the colony. */
+    private static final Map<Integer, BlockPos> RAID_SPAWN = new HashMap<>();
     private static final Set<Long> HANDLED_RAID_EVENTS = new HashSet<>(); // colonyId<<32 | eventId
     private static final Map<Integer, Long> PINNED_EVENT = new HashMap<>(); // colony -> pinpointed event key
     private static final Set<Integer> AUTO_DEFENSE = new HashSet<>(); // colonies whose line WE formed
@@ -210,15 +212,15 @@ public final class RaidWatcher {
                 String dirName = dirName8(dx, dz);
                 RAID_VEC.put(colony.getID(), out);
                 RAID_DIR.put(colony.getID(), dirName);
+                RAID_SPAWN.put(colony.getID(), spawn);
                 PINNED_EVENT.put(colony.getID(), key);
                 ColonistErrands.LOGGER.info("[Alarm] Scheduled raid pinpointed: from the {} (spawn {})", dirName, spawn.toShortString());
                 broadcast(server, "[Alarm] Scouts pinpointed the raid on " + colonyName(colony) + ": attackers approach "
                         + "from the " + dirName.toUpperCase() + " - they will be here within MINUTES!");
                 if (!ErrandManager.hasActiveDefense(colony.getID())) {
-                    int placed = formLineToward(colony, out, dirName);
+                    int placed = formLineToward(colony, out, dirName, spawn);
                     if (placed > 0) {
                         AUTO_DEFENSE.add(colony.getID());
-                DEFENSE_SINCE.put(colony.getID(), System.currentTimeMillis());
                         DEFENSE_SINCE.put(colony.getID(), System.currentTimeMillis());
                         broadcast(server, "[Alarm] " + placed + " guard tower(s) are forming a defensive line at "
                                 + colonyName(colony) + "'s " + dirName + " border!");
@@ -263,6 +265,7 @@ public final class RaidWatcher {
         PINNED_EVENT.remove(colony.getID());
         RAID_VEC.remove(colony.getID());
         RAID_DIR.remove(colony.getID());
+        RAID_SPAWN.remove(colony.getID());
         broadcast(server, "[Alarm] The raiders turned back - no attack on " + colonyName(colony) + " after all. Stand easy.");
         DEFENSE_SINCE.remove(colony.getID());
         if (AUTO_DEFENSE.remove(colony.getID())) {
@@ -293,41 +296,43 @@ public final class RaidWatcher {
         }
     }
 
-    /** Same line math as defend_here's border mode: anchor at the colony bbox edge toward 'out'. */
-    private static int formLineToward(IColony colony, double[] out, String dirName) {
+    /**
+     * Same line math as defend_here's border mode (see DefenseLine): the anchor sits on
+     * the axis of the attack just past the outermost building, between the raiders and
+     * the colony, pulled back toward the town hall when the ground there is water.
+     */
+    private static int formLineToward(IColony colony, double[] out, String dirName, BlockPos spawn) {
         int placed = 0;
         try {
             java.util.ArrayList<AbstractBuildingGuards> towers = new java.util.ArrayList<>();
-            int minX = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE, minZ = Integer.MAX_VALUE, maxZ = Integer.MIN_VALUE;
             for (IBuilding b : colony.getServerBuildingManager().getBuildings().values()) {
-                BlockPos p = b.getPosition();
-                minX = Math.min(minX, p.getX());
-                maxX = Math.max(maxX, p.getX());
-                minZ = Math.min(minZ, p.getZ());
-                maxZ = Math.max(maxZ, p.getZ());
-                if (b instanceof AbstractBuildingGuards g) towers.add(g);
+                if (!(b instanceof AbstractBuildingGuards g)) continue;
+                // A tower with no guards can't defend anything (under
+                // construction / unmanned) - its settings may not even be
+                // initialized (StringSetting.getValue threw for 2 such towers
+                // in Lovkar's raid log). Skip it and keep the count honest.
+                try {
+                    if (g.getAllAssignedCitizen() == null || g.getAllAssignedCitizen().isEmpty()) {
+                        continue;
+                    }
+                } catch (Throwable ignored) {
+                }
+                towers.add(g);
             }
             if (towers.isEmpty()) return 0;
-            int margin = 8;
-            int cx = (minX + maxX) / 2;
-            int cz = (minZ + maxZ) / 2;
-            int ax = out[0] > 0.3 ? maxX + margin : out[0] < -0.3 ? minX - margin : cx;
-            int az = out[1] > 0.3 ? maxZ + margin : out[1] < -0.3 ? minZ - margin : cz;
+            int[] anchor = DefenseLine.anchor(colony, out, spawn, towers.size());
+            if (anchor == null) {
+                ColonistErrands.LOGGER.info("[Defense] AUTO line toward the {} - no dry ground, towers stay on their normal tasks",
+                        dirName);
+                return 0;
+            }
+            int ax = anchor[0];
+            int az = anchor[1];
             double px = -out[1];
             double pz = out[0];
-            int spacing = 4;
+            int spacing = DefenseLine.SPACING;
             for (AbstractBuildingGuards tower : towers) {
                 try {
-                    // A tower with no guards can't defend anything (under
-                    // construction / unmanned) - its settings may not even be
-                    // initialized (StringSetting.getValue threw for 2 such towers
-                    // in Lovkar's raid log). Skip it and keep the count honest.
-                    try {
-                        if (tower.getAllAssignedCitizen() == null || tower.getAllAssignedCitizen().isEmpty()) {
-                            continue;
-                        }
-                    } catch (Throwable ignored) {
-                    }
                     int k = (placed + 1) / 2 * ((placed % 2 == 0) ? 1 : -1);
                     int postX = ax + (int) Math.round(px * spacing * k);
                     int postZ = az + (int) Math.round(pz * spacing * k);
@@ -423,6 +428,8 @@ public final class RaidWatcher {
                     RAID_VEC.put(colony.getID(), new double[]{dx / len, dz / len});
                     dirName = dirName8(dx, dz);
                     RAID_DIR.put(colony.getID(), dirName);
+                    RAID_SPAWN.put(colony.getID(), new BlockPos(center.getX() + (int) Math.round(dx), center.getY(),
+                            center.getZ() + (int) Math.round(dz)));
                 }
             }
         } catch (Throwable t) {
@@ -436,9 +443,10 @@ public final class RaidWatcher {
         // If the pre-spawn scan didn't catch this raid, form the line now.
         double[] vec = RAID_VEC.get(colony.getID());
         if (!ErrandManager.hasActiveDefense(colony.getID()) && vec != null) {
-            int placed = formLineToward(colony, vec, dirName);
+            int placed = formLineToward(colony, vec, dirName, RAID_SPAWN.get(colony.getID()));
             if (placed > 0) {
                 AUTO_DEFENSE.add(colony.getID());
+                DEFENSE_SINCE.put(colony.getID(), System.currentTimeMillis()); // the 20-minute cap applies here too
                 broadcast(server, "[Alarm] " + placed + " guard tower(s) rush to form a defensive line at "
                         + colonyName(colony) + "'s " + dirName + " border!");
             }
@@ -495,6 +503,7 @@ public final class RaidWatcher {
     private static void onRaidEnd(MinecraftServer server, IColony colony) {
         RAID_VEC.remove(colony.getID());
         RAID_DIR.remove(colony.getID());
+        RAID_SPAWN.remove(colony.getID());
         PINNED_EVENT.remove(colony.getID());
         broadcast(server, "[Alarm] The raid on " + colonyName(colony) + " is over - the colony held!");
         try {
@@ -529,6 +538,11 @@ public final class RaidWatcher {
         return RAID_DIR.getOrDefault(colony.getID(), "unknown direction");
     }
 
+    /** Where the ACTIVE raid's attackers appear(ed), or null. */
+    public static BlockPos raidSpawn(IColony colony) {
+        return RAID_SPAWN.get(colony.getID());
+    }
+
     public static String dirName8(double dx, double dz) {
         double angle = Math.toDegrees(Math.atan2(dx, -dz)); // 0 = north, 90 = east
         if (angle < 0) angle += 360;
@@ -542,6 +556,7 @@ public final class RaidWatcher {
         PINNED_EVENT.clear();
         RAID_VEC.clear();
         RAID_DIR.clear();
+        RAID_SPAWN.clear();
         HANDLED_RAID_EVENTS.clear();
         AUTO_DEFENSE.clear();
         DEFENSE_SINCE.clear();
