@@ -142,7 +142,7 @@ public class ColonistErrands {
                 String group = TOOL_GROUPS.get(action.getName());
                 map.put(action.getName(), group == null ? action : new RankGatedAction(action, group));
             }
-            LOGGER.info("[ColonistErrands] Registered tools (v2.0.0-beta.36): 42 tools - the alpha.10 set plus "
+            LOGGER.info("[ColonistErrands] Registered tools (v2.0.0-beta.41): 42 tools - the alpha.10 set plus "
                     + "request_craft, courier_board, guard_gear, trade_status, mint_coins, remember_fallen, "
                     + "arm_guards, prioritize, build_status; rank-gated per config");
         } catch (Throwable t) {
@@ -152,12 +152,15 @@ public class ColonistErrands {
 
     @SubscribeEvent
     public void onServerTick(ServerTickEvent.Post event) {
+        SlotGuard.resetForTick();
         ErrandManager.tick(event.getServer());
         WatchManager.tick(event.getServer());
         RaidWatcher.tick(event.getServer());
+        StreamDrain.tick(event.getServer());
         C2cAudioFollower.tick(event.getServer());
         FamilyChats.tick(event.getServer());
         ShopChats.tick(event.getServer());
+        GroupChats.tick(event.getServer());
         DeathWatcher.tick(event.getServer());
         PromiseWatcher.tick(event.getServer());
         FetchQueue.tick(event.getServer());
@@ -222,5 +225,7 @@ public class ColonistErrands {
         DeathWatcher.clearAll();
         FamilyChats.clearAll();
         ShopChats.clearAll();
+        GroupChats.clearAll();
+        StreamDrain.clearAll();
     }
 }

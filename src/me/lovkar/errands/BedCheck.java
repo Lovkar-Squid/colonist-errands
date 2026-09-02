@@ -26,6 +26,7 @@ import net.minecraft.world.level.block.state.properties.BedPart;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -63,13 +64,23 @@ public final class BedCheck {
         public final BlockPos bed;
         public final String reason;
         public final String fix;
+        /**
+         * No home building at all. Nothing about beds will change this until a house
+         * is built, so it is said once a session rather than every evening.
+         */
+        public final boolean homeless;
 
         Problem(String citizen, String building, BlockPos bed, String reason, String fix) {
+            this(citizen, building, bed, reason, fix, false);
+        }
+
+        Problem(String citizen, String building, BlockPos bed, String reason, String fix, boolean homeless) {
             this.citizen = citizen;
             this.building = building;
             this.bed = bed;
             this.reason = reason;
             this.fix = fix;
+            this.homeless = homeless;
         }
     }
 
@@ -77,6 +88,12 @@ public final class BedCheck {
     private static final Map<String, Problem> BY_CITIZEN = new ConcurrentHashMap<>();
     /** citizen name -> the Minecraft day we last complained about them. */
     private static final Map<String, Long> WARNED_DAY = new ConcurrentHashMap<>();
+    /**
+     * The homeless we have already named this session. Lovkar's log had the same three
+     * names in chat three times in twenty minutes - once per game evening, as designed,
+     * but a skipped night is a new evening, and the advice does not change.
+     */
+    private static final Set<String> WARNED_HOMELESS = ConcurrentHashMap.newKeySet();
     private static long lastScanDay = -1;
 
     /**
@@ -439,7 +456,7 @@ public final class BedCheck {
                 }
             } else {
                 AWAY_SINCE.clear();
-        HOSPITAL_TROUBLE.clear();
+                HOSPITAL_TROUBLE.clear();
             }
             if (found.isEmpty()) {
                 return;
@@ -448,6 +465,15 @@ public final class BedCheck {
                 BY_CITIZEN.put(p.citizen, p);
             }
             for (Problem p : found) {
+                if (p.homeless) {
+                    if (!WARNED_HOMELESS.add(p.citizen)) {
+                        continue; // said once already this session - the prompt line still carries it
+                    }
+                    broadcast(server, "[Beds] " + p.citizen + " has no home - " + p.reason + ". " + p.fix);
+                    ColonistErrands.LOGGER.info("[Beds] {} has no home - stands about in the {} at night",
+                            p.citizen, p.building);
+                    continue;
+                }
                 Long warned = WARNED_DAY.get(p.citizen);
                 if (warned != null && warned == day) {
                     continue;
@@ -501,7 +527,7 @@ public final class BedCheck {
                                 "they have NO home at all - the game sends the homeless to stand there at night, "
                                         + "and without a home building the sleep code never even looks for a bed",
                                 "Assign them a house (or a tavern room) in its hut window; they will keep standing "
-                                        + "about every night until you do."));
+                                        + "about every night until you do.", true));
                         continue;
                     }
                     if (!home.hasModule(BuildingModules.BED)) {
@@ -705,6 +731,7 @@ public final class BedCheck {
     public static void clearAll() {
         BY_CITIZEN.clear();
         WARNED_DAY.clear();
+        WARNED_HOMELESS.clear();
         AWAY_SINCE.clear();
         HOSPITAL_TROUBLE.clear();
         lastScanDay = -1;

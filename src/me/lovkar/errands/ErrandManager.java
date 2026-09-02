@@ -890,6 +890,9 @@ public final class ErrandManager {
     private static ItemStack insertIntoRacks(IBuilding building, AbstractEntityCitizen citizen, ItemStack stack) {
         ItemStack rest = stack;
         try {
+            // Same order as MineColonies Compatibility's own courier dump: linked
+            // network storage first, racks for whatever is left.
+            rest = NetworkStorage.insert(building, rest);
             for (BlockPos rackPos : building.getContainers()) {
                 if (rest.isEmpty()) break;
                 BlockEntity be = citizen.level().getBlockEntity(rackPos);
@@ -1021,6 +1024,17 @@ public final class ErrandManager {
                     }
                 }
             }
+            // Still short? The rest may be in the chests behind a network storage
+            // block - since Lovkar linked one, that is where most stock lives.
+            if (collected < e.fetchCount && !e.hutCapped
+                    && com.minecolonies.api.util.InventoryUtils.getAmountOfStacksInItemHandler(citizenInv) < stackCap) {
+                int fromNetwork = NetworkStorage.extractInto(e.building, e.fetchItem, e.fetchCount - collected, citizenInv);
+                if (fromNetwork > 0) {
+                    collected += fromNetwork;
+                    ColonistErrands.LOGGER.info("[Courier] {} took {}x {} from the warehouse's network storage",
+                            safeName(e.citizen), fromNetwork, e.fetchItem.getDescription().getString());
+                }
+            }
         } catch (Throwable t) {
             ColonistErrands.LOGGER.warn("pickupFromWarehouse failed", t);
         }
@@ -1046,7 +1060,7 @@ public final class ErrandManager {
                 }
                 ItemStack pulled = citizenInv.extractItem(slot, inSlot.getCount(), false);
                 if (pulled.isEmpty()) continue;
-                ItemStack rest = pulled;
+                ItemStack rest = NetworkStorage.insert(e.building, pulled);
                 for (BlockPos rackPos : e.building.getContainers()) {
                     if (rest.isEmpty()) break;
                     BlockEntity be = e.citizen.level().getBlockEntity(rackPos);

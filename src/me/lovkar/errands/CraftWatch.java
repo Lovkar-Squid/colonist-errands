@@ -275,6 +275,7 @@ public final class CraftWatch {
     private static int countIn(Level level, IBuilding building, Item item) {
         int total = 0;
         try {
+            total += NetworkStorage.count(building, item); // linked chests, if the warehouse has any
             for (BlockPos pos : building.getContainers()) {
                 BlockEntity be = level.getBlockEntity(pos);
                 if (!(be instanceof AbstractTileEntityRack rack)) continue;

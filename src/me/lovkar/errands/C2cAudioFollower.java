@@ -50,6 +50,8 @@ public final class C2cAudioFollower {
         boolean everTogether;      // they met at least once - safety splits apply only after this
         /** When mc_talking marked the conversation ENDED - audio can still be draining. */
         long endedAtMs = 0;
+        /** We re-marked the participants busy while the audio drains; undo on release. */
+        boolean holding = false;
         final long startedAt = System.currentTimeMillis();
 
         Entry(CitizenConversation conversation, LocationalAudioChannel channel,
@@ -79,10 +81,22 @@ public final class C2cAudioFollower {
      * after the end, and only then let go.
      */
     private static final long TAIL_MS = 20_000;
+    /**
+     * beta.39: the tail is no longer a guess. A Flash/TTS conversation is marked
+     * ENDED when the last audio chunk has been RECEIVED - and generation runs well
+     * ahead of playback, so half a minute of dialogue can still be queued at that
+     * point. We now watch the stream itself and let go only when it has really run
+     * dry; the fixed tail above is kept as the fallback if the stream cannot be read.
+     * While it drains the pair are kept busy and standing, so they finish the
+     * conversation where they had it instead of walking off and leaving the voices
+     * behind. The player addressing one of them cuts it short - they come first.
+     */
+    private static final long DRAIN_MAX_MS = 3 * 60_000;
     private static final long PARTNER_MEMORY_MS = 3 * 60_000;
     /** pair -> expiry: a caller asked for this pair to talk WITHOUT walking together. */
     private static final Map<Long, Long> STATIONARY_HINT = new ConcurrentHashMap<>();
     private static Field fState;
+    private static Field fStream;
 
     /**
      * Lovkar's two marketplaces face each other across a street. Two shopkeepers
@@ -150,7 +164,7 @@ public final class C2cAudioFollower {
         for (Entry e : ENTRIES) {
             try {
                 if (now - e.startedAt > MAX_AGE_MS) {
-                    ENTRIES.remove(e);
+                    release(e, "ten minutes is enough for anyone");
                     continue;
                 }
                 boolean draining = false;
@@ -158,8 +172,12 @@ public final class C2cAudioFollower {
                     if (e.endedAtMs == 0) {
                         e.endedAtMs = now;
                     }
-                    if (now - e.endedAtMs > TAIL_MS) {
-                        ENTRIES.remove(e);
+                    Object stream = streamOf(e.conversation);
+                    boolean stillPlaying = stream instanceof me.sshcrack.mc_talking.manager.GeminiStream gs
+                            ? StreamDrain.hasWork(gs)
+                            : now - e.endedAtMs <= TAIL_MS; // cannot see the stream - fall back to the fixed tail
+                    if (!stillPlaying || now - e.endedAtMs > DRAIN_MAX_MS) {
+                        release(e, stillPlaying ? "audio ran past three minutes" : null);
                         continue;
                     }
                     draining = true; // keep the channel on them until the audio runs out
@@ -173,6 +191,32 @@ public final class C2cAudioFollower {
                 if (alive.isEmpty()) {
                     abortQuietly(e, "all participants gone");
                     continue;
+                }
+                if (draining) {
+                    // mc_talking has already let go of them (markNotBusy at ENDED) while
+                    // their voices are still going. Hold them here until the last word.
+                    boolean playerTookOne = false;
+                    for (AbstractEntityCitizen c : alive) {
+                        try {
+                            if (me.sshcrack.mc_talking.ConversationManager.getPlayerForEntity(c.getUUID()) != null) {
+                                playerTookOne = true;
+                            }
+                        } catch (Throwable ignored) {
+                        }
+                    }
+                    if (playerTookOne) {
+                        release(e, null);
+                        abortQuietly(e, "the player is talking to one of them");
+                        continue;
+                    }
+                    e.holding = true;
+                    for (AbstractEntityCitizen c : alive) {
+                        me.sshcrack.mc_talking.ConversationManager.markBusy(c);
+                    }
+                    if (alive.size() >= 2) {
+                        freeze(alive.get(0), alive.get(1));
+                        freeze(alive.get(1), alive.get(0));
+                    }
                 }
                 if (alive.size() >= 2 && !draining) {
                     AbstractEntityCitizen a = alive.get(0);
@@ -272,10 +316,52 @@ public final class C2cAudioFollower {
 
     private static void abortQuietly(Entry e, String why) {
         ENTRIES.remove(e);
+        if (e.holding) {
+            for (AbstractEntityCitizen c : e.participants) {
+                try {
+                    if (c != null) {
+                        me.sshcrack.mc_talking.ConversationManager.markNotBusy(c);
+                    }
+                } catch (Throwable ignored) {
+                }
+            }
+        }
         try {
             e.conversation.abort();
             ColonistErrands.LOGGER.info("[C2C] Stopped conversation audio ({})", why);
         } catch (Throwable ignored) {
+        }
+    }
+
+    /** The audio is over (or we gave up waiting): let them go. */
+    private static void release(Entry e, String why) {
+        ENTRIES.remove(e);
+        if (e.holding) {
+            for (AbstractEntityCitizen c : e.participants) {
+                try {
+                    if (c != null) {
+                        me.sshcrack.mc_talking.ConversationManager.markNotBusy(c);
+                    }
+                } catch (Throwable ignored) {
+                }
+            }
+        }
+        if (why != null) {
+            ColonistErrands.LOGGER.info("[C2C] Let the pair go - {}", why);
+        } else if (e.holding) {
+            ColonistErrands.LOGGER.info("[C2C] Conversation audio finished - the pair are free to go");
+        }
+    }
+
+    private static Object streamOf(CitizenConversation conversation) {
+        try {
+            if (fStream == null) {
+                fStream = CitizenConversation.class.getDeclaredField("stream");
+                fStream.setAccessible(true);
+            }
+            return fStream.get(conversation);
+        } catch (Throwable t) {
+            return null;
         }
     }
 
