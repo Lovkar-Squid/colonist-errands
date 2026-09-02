@@ -75,7 +75,9 @@ public final class JobChatPolicy {
             Map.entry("JobConcreteMixer", Policy.FOCUSED),
             Map.entry("JobPlanter", Policy.FOCUSED),
             Map.entry("JobNetherWorker", Policy.FOCUSED),
-            Map.entry("JobUndertaker", Policy.FOCUSED)
+            Map.entry("JobUndertaker", Policy.FOCUSED),
+            // Voyager mod: Voyagers mostly wait at the Departure Point between launches.
+            Map.entry("JobVoyager", Policy.CHATTY)
     );
 
     private JobChatPolicy() {

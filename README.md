@@ -6,9 +6,10 @@ Talking Colonists gives your MineColonies citizens AI voices. Colonist Errands g
 conversations **consequences**: what you say to a colonist actually happens in the colony — and
 what a colonist tells you is checked against the colony's real state first.
 
-> **2.0.0 is the first full release.** 42 voice tools, built and play-tested daily on one heavily
-> played world (single-player and LAN co-op). Resurrection and births exist but are rarely seen, so
-> they have had the least testing. Report issues with your `latest.log` attached.
+> **2.1.0** adds the optional integration with [Voyager - End Expeditions for MineColonies](https://www.curseforge.com/minecraft/mc-mods/voyager-end-expeditions-for-minecolonies)
+> (see below). 2.0.0 was the first full release: 42 voice tools, built and play-tested daily on one
+> heavily played world (single-player and LAN co-op). Resurrection and births exist but are rarely
+> seen, so they have had the least testing. Report issues with your `latest.log` attached.
 
 ## What you can do by talking
 
@@ -75,6 +76,16 @@ are closed so no sentence is cut short, small talk that never evicts a running c
 self-learning blocklist for TTS voices the Gemini API rejects (no more permanently mute citizens),
 and a fix for citizen memories being lost when the model wraps JSON in markdown fences.
 
+**Voyagers (optional, with the Voyager mod)** — the End-explorer profession joins the conversation.
+A Voyager knows which look their Departure Point has (a rocket that really lifts off, or an End Gate
+that beams them up), what they are doing right now (packing rations, waiting for supplies, tools,
+the launch window or the rocket, boarding, out in the End, just back), who their crewmate is, and
+what the last expedition brought home - or how it ended - straight from the hut's Expedition Log.
+They embellish the feelings, never the facts. Two Voyagers who share a Departure Point talk shop
+like astronauts while they wait, and the one who stayed behind welcomes the other back from the End
+and hears the story. Everyone else in the colony knows who flies, who is out there right now and
+who just came home.
+
 ## Requirements
 
 - Minecraft **1.21.1**, NeoForge **21.1.x**
@@ -83,6 +94,7 @@ and a fix for citizen memories being lost when the model wraps JSON in markdown 
 - Simple Voice Chat (required by Talking Colonists) and a microphone
 - **MC Trade Post** is optional — the marketplace and economy features simply stay quiet without it
 - **MineColonies Compatibility** is optional — a linked *Common Network Storage* counts as warehouse stock
+- **Voyager 0.2.0+** is optional — Voyagers get their lore, crew talk and colony news; without it nothing changes
 
 In multiplayer only the **host/server** needs the API key; clients just install the same mods.
 

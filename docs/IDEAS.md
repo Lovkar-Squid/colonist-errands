@@ -583,6 +583,34 @@ Also from that log:
   excuse can even be generated; the log showed "did not stop" at 14 s.
 - Homeless warning: once per citizen per session, confirmed (3 at 14:19, one new at 14:49).
 
+## Released - v2.1.0 (3 Sep 2026) - the Voyagers join the conversation
+
+Integration with **Voyager - End Expeditions for MineColonies** (our second addon: a profession that
+flies expeditions to the End from a *Departure Point*, built as a Launchpad with a rocket or as an
+End Gate). Everything is a soft dependency - registry key `voyager:voyager`, class names and
+reflection (`VoyagerCompat`) - so Colonist Errands loads and behaves exactly as before without it.
+
+- `VoyagerLore` (every 5 s on the server thread, cached by citizen name for the prompt workers):
+  a Voyager's prompt gets a VOYAGER TRUTH block - which look their Departure Point has and what
+  that means (rocket lifts off / gate beams them up), the launch-window rhythm of their level, what
+  they are doing RIGHT NOW (Voyager 0.2.0 publishes `JobVoyager.Status` + the AI's status line:
+  packing rations, waiting for supplies / tools / the launch window / the rocket, boarding, away,
+  just back), who their crewmate is and what that crewmate is doing, and the last expedition from
+  the hut's Expedition Log (MineColonies' own `ExpeditionLogModule`: mobs fought, loot brought home,
+  health, or the death) - with the instruction to embellish feelings but never facts, and to work
+  one phrase about their current situation into a greeting. Everyone else gets a COLONY NEWS line:
+  the colony has a Departure Point, who the Voyagers are, who is out in the End right now and who
+  just landed.
+- `VoyagerChats`: crew talk. Two Voyagers of one Departure Point who are both waiting (supplies,
+  tools, window, rocket, idle), near each other, free and allowed to speak, get a citizen-to-citizen
+  conversation with a memory note naming the reason for the wait and the last expedition's facts -
+  astronaut shop talk between missions (pair cooldown 25 min, global 4 min). When one of them has
+  landed within the last 4 minutes and the other is waiting, the crewmate welcomes them back and
+  hears the story (12-min cooldown).
+- `JobChatPolicy`: `JobVoyager` is CHATTY - they mostly wait at the hut between launches.
+- Not play-tested in game before publishing (Lovkar's call - the code paths are the same as the
+  family/shop chats and the other truth blocks; a crew chat logs `[Crew] ...`).
+
 ## Released - v2.0.0 (2 Sep 2026)
 
 The beta.42 code, rebuilt with the version `2.0.0` and nothing else changed. CurseForge file of

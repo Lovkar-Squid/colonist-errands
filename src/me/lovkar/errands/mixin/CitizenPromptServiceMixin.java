@@ -109,6 +109,14 @@ public abstract class CitizenPromptServiceMixin {
                 }
             } catch (Throwable ignored) {
             }
+            try {
+                // Voyager mod (optional): a Voyager knows their Departure Point, what they are
+                // waiting for and what the last expedition brought; everyone else gets colony news.
+                if (view != null) {
+                    block = block + me.lovkar.errands.VoyagerLore.promptBlock(view.name());
+                }
+            } catch (Throwable ignored) {
+            }
             if (!block.isEmpty()) {
                 cir.setReturnValue(cir.getReturnValue() + block);
             }

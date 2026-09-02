@@ -1,3 +1,26 @@
+# Colonist Errands 2.1.0 — the Voyagers join the conversation
+
+Integration with [Voyager - End Expeditions for MineColonies](https://www.curseforge.com/minecraft/mc-mods/voyager-end-expeditions-for-minecolonies),
+the End-explorer profession. Voyager is **optional** - without it nothing changes.
+
+- **Voyagers tell you about the End.** A Voyager's prompt is grounded in their real situation:
+  which look their Departure Point has (a rocket that really lifts off, or an End Gate that beams
+  them up), the launch-window rhythm of their level, what they are doing right now (packing
+  rations, waiting for supplies, tools, the launch window or the rocket, boarding, out in the End,
+  just back), who their crewmate is, and the last expedition from the hut's Expedition Log - the
+  mobs fought, the loot brought home, how hurt they came back, or how they died out there. They
+  embellish the feelings, never the facts, and work a phrase about their current situation into a
+  greeting.
+- **Crew talk.** With the Buddy System two Voyagers share one Departure Point and spend a lot of
+  time waiting together - so they talk shop like astronauts between missions, about the wait, the
+  void and the next haul. When one of them lands, the other welcomes them back and hears the story.
+- **Colony news.** Every other colonist knows the colony has a Departure Point, who flies from it,
+  who is out in the End right now and who just came home - for gossip, when it fits.
+- Voyagers count as a chatty profession for citizen-to-citizen conversations.
+
+Requires Voyager **0.2.0+** for the Voyager features (older builds simply show no status).
+Everything below is unchanged from 2.0.0.
+
 # Colonist Errands 2.0.0 — voice commands, and colonists who tell you the truth
 
 The first full release. The code is the one that ran as beta.42 - nothing changed but the
