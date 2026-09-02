@@ -6,8 +6,8 @@ Talking Colonists gives your MineColonies citizens AI voices. Colonist Errands g
 conversations **consequences**: what you say to a colonist actually happens in the colony — and
 what a colonist tells you is checked against the colony's real state first.
 
-> ⚠️ **BETA.** 42 voice tools, built and play-tested daily on one heavily played world
-> (single-player and LAN co-op). Raids, resurrection and births exist but are rarely seen, so
+> **2.0.0 is the first full release.** 42 voice tools, built and play-tested daily on one heavily
+> played world (single-player and LAN co-op). Resurrection and births exist but are rarely seen, so
 > they have had the least testing. Report issues with your `latest.log` attached.
 
 ## What you can do by talking
