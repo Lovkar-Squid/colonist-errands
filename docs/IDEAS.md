@@ -415,6 +415,174 @@ Everything below works in code and compiles clean, but has not yet been seen fir
 - `ColonyMap` grounding - no more invented aches or invented walls.
 - The 20-second audio tail, and a two-person conversation sounding as if it comes from between them.
 
+## Done - v2.0.0-beta.37 (1 Sep 2026)
+
+**Conversations that end properly instead of being cut off** (Lovkar's report: a counter chat
+that reached the three minute cap was chopped off mid-word). The log had the case exactly:
+22:19:22 start, 22:22:22 cut, on "Turn 7 of 10" with the second speaker still talking.
+- New `ChatWindDown`: a conversation is now asked to finish rather than killed. At two minutes
+  a line is dropped into both live sessions telling them to bring it to a close; at three,
+  mc_talking's own `endConversationWhenPossible()` lets the current sentence play out and then
+  closes cleanly; only at 3:45, if they somehow carry on, is the audio cut. The order matters -
+  setting the end flag first would close the session before the goodbye was ever spoken.
+- A customer walking in gets the same treatment with a twelve second grace: one line to excuse
+  themselves, then back to the counter.
+- Only possible for LIVE_WEBSOCKETS conversations. FLASH_TTS renders the whole dialogue as a
+  single clip before you hear a word of it, so for that kind there is nothing to negotiate with -
+  it ends when the clip ends, and `endAfterThisLine` reports that it could not help.
+- **Bug found while doing it:** `ShopChats` never noticed a conversation ending by itself, so the
+  shop stayed "busy" indefinitely and every chat was eventually ended by the clock, whether or not
+  it was still going. It now registers `setOnStateChanged` and clears immediately.
+
+**Three-way huddles** (Lovkar's question: can more than two of them talk at once?). Not in one
+voice - and it is worth recording why, so nobody tries again:
+- Gemini's multi-speaker TTS accepts **at most two** speaker voices. Confirmed against Google's
+  own docs for `gemini-3.1-flash-tts-preview`, so a third name in the transcript has no voice.
+- LIVE_WEBSOCKETS wires two live sessions as peers, each one's transcript fed to the other, one
+  holding its audio while the other speaks. The wiring is one-to-one; there is no third socket.
+
+So `GroupChats` builds a huddle the way people actually stand in one: three of them together, and
+the conversation goes round the circle - A with B, B turns to C, C rounds it off with A. Each leg
+is a real two-way dialogue, and because mc_talking writes each pair a memory of what they just
+discussed, the next leg carries on rather than starting over. Two mc_talking rules are worked
+around deliberately: the per-citizen cooldown is lifted for the pair about to speak (and only
+them), and a leg that cannot get two free agent slots is skipped rather than evicting somebody
+else's conversation. Rare by design - one huddle per quarter hour, the same trio at most every
+three quarters, and only where a player is close enough to hear it. `group_chats=false` in
+`colonist_errands_settings.properties` turns it off; the key is appended to an existing settings
+file automatically.
+
+**Also worth knowing** (from the same log): `conversationMode` is AUTO, and Gemini TTS failed on
+6 of 18 conversations with "Expected audio chunks for TTS generation, but none were streamed" -
+those fell back to Live WebSockets. Both paths are therefore live in normal play, which is why
+the wind-down had to handle each of them differently.
+
+## Done - v2.0.0-beta.38 (2 Sep 2026) - from the first beta.37 log
+
+**The wind-down works.** 23:04:18 counter chat starts (live mode, Turn 4 of 10 by two minutes);
+23:06:18 "asked them to wrap up"; 23:06:33 Theobaldus's own session calls `end_conversation`;
+23:06:42 his closing line finishes ("...let's hope that marketplace upgrade goes smoothly") and
+both sessions close cleanly - "Counter chat over - they finished it themselves". Without the
+nudge it would have run to ten turns, about five minutes.
+
+- **Chat timers now count server ticks, not the wall clock.** The one customer case in the log
+  read "they did not stop" - but Lovkar had paused the game (ESC) a second after the customer
+  walked in, the server stood still for 22 seconds, and on resume the 12 s grace had "expired"
+  with nobody having had a chance to speak. A paused game must not count against anyone.
+  `ShopChats` and `GroupChats` both converted.
+- **No huddle in 32 minutes** - selection was too strict. It required all three to be off
+  mc_talking's 120 s per-citizen cooldown at the same instant, near the player - exactly where
+  mumbles and greetings keep everybody on cooldown. The cooldown is no longer a bar for picking
+  the trio (it is lifted for each pair anyway); the search runs every 30 s instead of every two
+  minutes (cheap - the global and trio cooldowns are what keep rounds rare); and once per five
+  minutes the log says why nothing started ("2 group(s) of three stood together, 2 with no
+  player near enough to hear..."), so a quiet feature can be told from a broken one.
+- **Homeless warning once per session.** The same three homeless names were in chat three times
+  in twenty minutes: once per game evening as designed, but a skipped night is a new evening and
+  the advice ("build them a house") does not change. `Problem.homeless` marks it; `WARNED_HOMELESS`
+  says it once. Broken-bed warnings keep their once-per-evening rule, because those do change.
+- Zero WARN/ERROR from colonist_errands across the session; world saved cleanly at 23:24:33 and
+  the client stopped normally at 23:24:38 - the black screen Lovkar saw afterwards was outside
+  Minecraft.
+
+## Done - v2.0.0-beta.39/40 (2 Sep 2026) - "sometimes they are still cut off mid-sentence"
+
+Lovkar's report after beta.38. The wind-down was not the culprit; the cuts are in mc_talking's own
+audio shutdown, two of them, one per conversation mode. Both found by reading the decompiled code,
+both fixed on our side.
+
+**Live sessions: `close()` throws the last sentence away.** `GeminiWsClient.close()` ends with
+`stream.close()`, and `GeminiStream.close()` empties the audio queue and stops the voice-chat player
+at once. A session is closed the moment Gemini reports the turn *generated* - and generation runs
+well ahead of playback - so whatever was still queued is gone. In a citizen-to-citizen live
+conversation it is worse: the second speaker's reply is HELD until the first has finished, and
+mc_talking only releases it to a peer whose socket is still open, so the close always arrived first
+and the reply was never heard at all. That also means our own `endConversationWhenPossible()`
+wind-down was cutting the goodbye it had just asked for. New `StreamDrain`: a `@Redirect` on that
+one `stream.close()` call hands the stream over instead; it is flushed, a held reply is released once
+the other speaker has run dry (whoever closed first speaks first), the citizen is kept busy and
+standing until the queue is empty and the player has stopped, and only then is the stream closed -
+30 s hard limit, and a new session for the same citizen cuts it at once, so the player still comes
+first. Barge-in is untouched (that path is `stop()`, not `close()`).
+
+**Flash/TTS: the goodbye was never played.** Audio arrives in chunks; the stream only moves them to
+the player once 192,000 bytes (four seconds at 24 kHz) have piled up, and whatever sits below that
+line when the last chunk lands only plays on `flushAudio()`. `GeminiWsClient` and the pregen player
+flush; the Flash conversation path never did, so up to four seconds of the end of *every* Flash
+conversation - the goodbye - was dropped. `CitizenConversationMixin` now flushes at `setState(ENDED)`,
+the exact moment the last chunk is in.
+
+**And the pair walked off with the audio.** ENDED is when the last chunk is RECEIVED; half a minute
+of dialogue can still be queued, and mc_talking marks the pair not-busy at that point, so
+MineColonies took their legs back while their voices carried on. `C2cAudioFollower` no longer trusts
+a 20 s tail: it watches the stream itself, keeps both participants busy and standing until it has run
+dry (three minute cap), then lets them go. The player addressing one of them cuts the audio and
+frees them - they come first. `GroupChats` waits for the previous part's audio (any of the three
+busy) before the next part starts, so the parts of a huddle no longer overlap or fail on a busy check.
+
+New log tags: `[Voice] <name> - stream closed: played to the end` and
+`[C2C] Conversation audio finished - the pair are free to go`.
+
+## Done - v2.0.0-beta.40 (2 Sep 2026) - network storage counts as warehouse stock
+
+Lovkar linked a MineColonies Compatibility **Common Network Storage** block to his warehouse and
+the couriers started filling the chests behind it. Read from that mod's code, for the record:
+
+- The block combines every inventory on its six sides into one "network storage view"; right-click
+  sets Insert/Extract/both; the **Warehouse** (only) has the Network Storage module and GUI tab.
+- Placing the block by hand registers nothing - MineColonies only reports builder-placed blocks to a
+  building. The block is found by a **periodic flood-fill search** from the warehouse hut block
+  (the warehouse has no citizens of its own; couriers belong to the Courier's Hut), capped at
+  8000 nodes and bounded by the schematic - so it must sit within ~10-15 blocks of the hut block,
+  and the result lands a colony tick later (1-2 min). That is why "Not linked" persisted until he
+  moved it next to the hut block.
+- Their courier-dump mixin puts items into linked storage **before** the racks; requests and
+  courier pickups read it too. The warehouse window's "Empty Slots: 80/864" is MineColonies' own
+  rack count and knows nothing about it - cosmetic. "Warehouse is full" only fires when chests
+  and racks both refuse a stack.
+
+Consequence for us: everything in this addon read racks only, so `check_stock` (and everything
+built on `countStock` - fetch, deliver, courier board, request_craft's stock check), fetch errands
+and CraftWatch's sourcing would all have missed most of the stock. New `NetworkStorage` helper -
+reflection only, MineColonies Compatibility stays optional - counts linked storage, lets fetch
+errands take from it once the racks run dry, and makes our own courier stashes go there first,
+in the same order as the mod's own dump. Logs `[Stock] ... network storage found` once, and
+`[Courier] X took Nx item from the warehouse's network storage` when it is used.
+
+(beta.39 was never installed - superseded by this build before the game was closed.)
+
+## Done - v2.0.0-beta.41 (2 Sep 2026) - small talk no longer evicts a running conversation
+
+From the beta.38 session log (84 min, zero WARN/ERROR from us): 21 citizen conversations, and
+**eleven "Evicted slot ... to make room"**. mc_talking has `maxConcurrentAgents` slots (four here);
+a live citizen-to-citizen conversation takes two, a mumble one. When the pool is full,
+`claimSlot` does not refuse - it evicts the OLDEST non-player session, closing it mid-sentence - and
+`hasLowPriorityCapacity` counts those evictable sessions as free, so every caller thinks there is
+room. A third random conversation somewhere in the colony therefore kills the one the player is
+listening to. Together with the two audio bugs fixed in beta.39/40, that accounts for the cuts.
+
+New `SlotGuard` + `ConversationManagerMixin`, priority by caller:
+- **Small talk** (live c2c of any origin - random, family, shop, huddle - and idle mumbling) may only
+  take a free slot or one whose holder has gone quiet (session closed, not an urgent contact, not
+  walking to the player). Otherwise it does not start: `[Voice] No free slot for small talk and
+  everyone is still talking - X waits instead of cutting somebody off`.
+- **Urgent contact** and **guard threats** keep the right to evict chatter, but eviction now prefers
+  a quiet slot over a busy one.
+- **The player** is untouched - always gets a slot.
+The marking is done by the callers themselves (`SlotGuard.enter/exit` around
+`performLiveWebsocketConversation` and `startMumbling`, reset every tick), so nothing is guessed.
+`hasLowPriorityCapacity` became honest for everybody, including our own ShopChats/GroupChats checks
+that had believed it.
+
+Also from that log:
+- **Both huddles fired.** 14:42 Hada/Gunilda/Gerard, all three parts, "the three of them had all had
+  their say"; 15:09 Michael/Sampson/Petronilla, two parts, then "Michael could not pick the
+  conversation up" (busy). In beta.38 the parts came 35 s apart in Flash mode - the audio of one
+  part still playing while the next generated; beta.40's wait-for-busy fixes that.
+- Shop customer grace raised 12 s -> 25 s: a live session must finish its sentence before the
+  excuse can even be generated; the log showed "did not stop" at 14 s.
+- Homeless warning: once per citizen per session, confirmed (3 at 14:19, one new at 14:49).
+
 ## Technical notes (for continuing development)
 - Key trick: `me.sshcrack.mc_talking.ConversationManager.markBusy/markNotBusy` — mc_talking's mixins keep a busy colonist in IDLE so the MineColonies AI doesn't take over their legs. We refresh busy every tick.
 - Walking: `com.minecolonies.core.entity.pathfinding.navigation.EntityNavigationUtils.walkToPos(entity, pos, range, safe)` — call repeatedly; following: `getNavigation().moveTo(player, 1.2)` every 20 ticks.

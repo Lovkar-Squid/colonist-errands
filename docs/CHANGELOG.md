@@ -1,3 +1,60 @@
+# Colonist Errands 2.0.0-beta.41 — conversations that finish, and nothing cut short
+
+Five builds since beta.36, all of them from one complaint: colonists were still being cut off
+mid-sentence. Three separate causes were found in the audio and slot handling and all three are
+fixed; the rest of this release is the group huddle and a warehouse fix.
+
+## Nothing is cut off any more
+
+- **Live conversations closed while still speaking.** mc_talking closes a session the moment
+  Gemini reports the turn *generated*, and closing empties the audio queue - so the last sentence,
+  and in a citizen-to-citizen conversation the second speaker's whole reply, was thrown away. The
+  stream is now drained before it is closed: the sentence plays out, a held reply is released once
+  the other speaker is done, and the citizen stands and finishes instead of walking off with it.
+  The player addressing a citizen still cuts them short - you come first.
+- **Flash/TTS dropped the goodbye.** The final chunk of every rendered conversation sat below the
+  stream's processing threshold and was never played - up to four seconds, always the end. Flushed
+  now.
+- **A new conversation killed a running one.** With all agent slots in use, mc_talking evicts the
+  oldest non-player session rather than refusing - and reports evictable sessions as free capacity,
+  so everything believed there was room. Small talk (random, family, shop, huddle, mumbling) may now
+  only take a free slot or one whose holder has gone quiet; if everyone is still talking, it waits.
+  A citizen coming to you with a need, and guard threats, keep the right to interrupt chatter.
+- Pairs are kept together until their audio has really ended, not until the last chunk arrived.
+
+## Shop talk ends politely
+
+At two minutes the pair are asked to bring it to a close; at three the current sentence is the
+last; only if they carry on well past that is the audio cut. A customer walking in gets one line
+of excuse and twenty-five seconds. Timers count server ticks, so pausing the game no longer counts
+against anyone.
+
+## Three of them at once
+
+Gemini voices at most two speakers and the live mode wires exactly two sessions, so a true
+three-way is not possible - instead three colonists standing together hold a **round**: A with B,
+then B turns to C, then C rounds it off with A, each part picking up from the last. Once per
+quarter hour at most, only within earshot of a player. `group_chats=false` in
+`colonist_errands_settings.properties` turns it off.
+
+## Network storage counts as warehouse stock
+
+If you link a MineColonies Compatibility *Common Network Storage* to your warehouse, couriers fill
+the chests behind it before the racks. `check_stock`, fetch and delivery errands, the courier board
+and `request_craft` now see those chests too, and our couriers put things there first, in the same
+order as the mod itself. Optional - nothing changes without that mod.
+
+## Smaller
+
+- The homeless-colonist bed warning is said once per session, not every evening.
+- The huddle search runs every 30 s and logs, at most every five minutes, why nothing started.
+
+Source and issue tracker: https://github.com/Lovkar-Squid/colonist-errands
+
+Authors: Lovkar & Claude.
+
+---
+
 # Colonist Errands 2.0.0-beta — voice commands, and colonists who tell you the truth
 
 This is the first **Beta** release. It replaces alpha.10 and is a very large step
