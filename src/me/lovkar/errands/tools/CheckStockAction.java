@@ -1,5 +1,6 @@
 package me.lovkar.errands.tools;
 
+import me.lovkar.errands.NetworkStorage;
 import com.google.gson.JsonObject;
 import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.buildings.IBuilding;
@@ -85,6 +86,9 @@ public class CheckStockAction extends PlayerFunctionAction {
         for (IBuilding b : colony.getServerBuildingManager().getBuildings().values()) {
             if (!b.getBuildingType().getRegistryName().getPath().equals("warehouse")) continue;
             warehouses++;
+            // Chests behind a MineColonies Compatibility network storage block count
+            // too - the couriers fill those BEFORE the racks.
+            total += NetworkStorage.count(b, item);
             for (BlockPos rackPos : b.getContainers()) {
                 BlockEntity be = citizen.level().getBlockEntity(rackPos);
                 if (be instanceof AbstractTileEntityRack rack) {
