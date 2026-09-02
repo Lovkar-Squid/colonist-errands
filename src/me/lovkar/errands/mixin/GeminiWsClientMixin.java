@@ -31,6 +31,9 @@ import java.util.UUID;
  *    session token and re-sends the last prompt, so the fresh session answers
  *    AGAIN. At exactly that point we drop the stale queued audio of the first
  *    answer - the re-answer then plays once.
+ *
+ * 4. close() no longer cuts the voice: the stream is drained by StreamDrain
+ *    before it is closed, so the last sentence is heard to the end.
  */
 @Mixin(targets = "me.sshcrack.mc_talking.manager.GeminiWsClient", remap = false)
 public abstract class GeminiWsClientMixin {
@@ -82,6 +85,41 @@ public abstract class GeminiWsClientMixin {
     private void colonist_errands$clearGateOnClose(CallbackInfo ci) {
         try {
             AudioGate.clear(this.getEntity().getUUID());
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /**
+     * Lovkar: "sometimes they are still cut off mid-sentence." close() ends with
+     * stream.close(), which empties the audio queue on the spot - and the session
+     * is closed when the turn is GENERATED, well before it has been HEARD. Hand the
+     * stream to StreamDrain instead, which lets it play out (and releases a held
+     * reply in a citizen-to-citizen conversation) before closing it.
+     */
+    @Redirect(
+            method = "close",
+            at = @At(value = "INVOKE",
+                    target = "Lme/sshcrack/mc_talking/manager/GeminiStream;close()V"),
+            remap = false,
+            require = 0
+    )
+    private void colonist_errands$drainThenClose(GeminiStream s) {
+        try {
+            me.lovkar.errands.StreamDrain.closeWhenDrained((me.sshcrack.mc_talking.manager.GeminiWsClient) (Object) this, s);
+        } catch (Throwable t) {
+            try {
+                s.close();
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
+    /** A new session for a citizen cuts whatever they were still finishing - the player comes first. */
+    @Inject(method = "<init>", at = @At("RETURN"), remap = false, require = 0)
+    private void colonist_errands$newSession(me.sshcrack.mc_talking.manager.audio.AudioProvider audioProvider,
+                                             AbstractEntityCitizen entity, CallbackInfo ci) {
+        try {
+            me.lovkar.errands.StreamDrain.newSessionFor(entity);
         } catch (Throwable ignored) {
         }
     }
