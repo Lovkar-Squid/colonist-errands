@@ -1,3 +1,77 @@
+# Colonist Errands 2.0.0 — voice commands, and colonists who tell you the truth
+
+The first full release. The code is the one that ran as beta.42 - nothing changed but the
+version - after three days of daily play-testing on one heavily played world, the last two
+sessions without a single warning or error from the addon.
+
+Requires **MineColonies 1.1.1300+**, **Talking Colonists 1.7.x** (with a working Gemini API key)
+and **Simple Voice Chat**. *MC Trade Post* and *MineColonies Compatibility* are optional.
+
+## What it does
+
+**42 voice tools.** Errands ("go eat", "go to the hospital", "come here", "everyone home",
+"follow me"), logistics (stock checks, fetching, deliveries between buildings, multi-warehouse
+rounds, a shared courier order board, `request_craft` with real follow-through), messengers,
+finding people, hiring and *switching* jobs by voice, patrols, bodyguards, red alert, defensive
+lines, `guard_gear` / `arm_guards`, the build queue by voice, the MC Trade Post economy, and the
+colony's roll of honour.
+
+**Promises they remember.** Promise a citizen something and they write it down, remind you when
+it is due, stop nagging while they trust you, and notice on their own when you deliver.
+
+**Citizens who know who you are.** Per-player memories and rapport, gossip about players'
+manners, and configurable rank permissions - guests may chat, only Officers command by default.
+
+**Colonists who tell you the truth.** Before a colonist opens their mouth, their prompt is grounded
+in the colony's real state: the compass layout of every building and which side each guard post
+covers, their own real health and equipment, what the builders are actually doing and why, whose
+beds are broken, what research is running. No invented aches, invented walls or complaints about
+gear they are already wearing.
+
+**Watchdogs that fix things.** Stalled builders reported with the real reason, broken bed
+registrations repaired (hospitals included), pending restarts completed, a colonist locked out of
+their own house saying so.
+
+**Raids.** Announced per colony and pinpointed *before* the raiders spawn; the defensive line forms
+by itself on the axis of the attack, between the raiders and the colony, on dry ground - and stands
+down by itself. A guard runs to warn you in person.
+
+**A guard leaderboard in weekly seasons.** Kills, raider kills, assists and damage taken; the week
+closes with a podium and real skill XP for the top three; careers survive across seasons.
+
+**Colony life.** Random chats standing or strolling, families talking *as* family, three colonists
+holding a round-robin huddle, shopkeepers talking shop until a customer walks in, reactions to new
+buildings and finished research, births celebrated, the fallen mourned and remembered by name.
+
+**Conversations that finish.** Audio is drained before a session is closed, the last chunk of every
+rendered conversation is played, small talk never evicts a running conversation, and shop talk is
+wound down politely instead of being cut at the time limit.
+
+**Network storage.** A linked *MineColonies Compatibility* Common Network Storage counts as
+warehouse stock for every check, fetch, delivery and order.
+
+## Since 2.0.0-beta.36 (the first public beta)
+
+- Conversations are no longer cut off mid-sentence - three separate causes fixed (beta.37-41).
+- Shop talk ends politely at the time limit; a customer gets one line of excuse.
+- The round of three (`group_chats=false` turns it off).
+- MineColonies Compatibility network storage counts as warehouse stock.
+- The automatic defense line is anchored between the raiders and the colony and pulls back from
+  water instead of giving up (beta.42).
+- The homeless-colonist bed warning is said once per session.
+
+## Known gaps
+
+Resurrection and births are built but rarely seen in play, so they have had the least testing. Two
+colonists talking share one audio channel - a limitation of the conversation API - so the sound is
+placed between them as the best available approximation.
+
+Source and issue tracker: https://github.com/Lovkar-Squid/colonist-errands
+
+Authors: Lovkar & Claude.
+
+---
+
 # Colonist Errands 2.0.0-beta.42 — the defensive line stands between the raiders and the colony
 
 A forced raid on beta.41 showed the alarm chain working end to end - the dusk warning, the

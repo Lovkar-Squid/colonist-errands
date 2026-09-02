@@ -583,6 +583,14 @@ Also from that log:
   excuse can even be generated; the log showed "did not stop" at 14 s.
 - Homeless warning: once per citizen per session, confirmed (3 at 14:19, one new at 14:49).
 
+## Released - v2.0.0 (2 Sep 2026)
+
+The beta.42 code, rebuilt with the version `2.0.0` and nothing else changed. CurseForge file of
+type **Release** (beta.36/41/42 stay as Beta files), GitHub release `v2.0.0` marked latest, README
+and the CurseForge description no longer carry the BETA banner. The honest gaps stay in the docs:
+resurrection and births rarely seen, the raid line verified offline on Lovkar's save but not yet
+watched forming in play.
+
 ## Done - v2.0.0-beta.42 (2 Sep 2026) - the defense line that formed in the sea
 
 Lovkar forced a raid on beta.41. The alarm chain worked end to end - dusk warning, `[Alarm]
@@ -629,3 +637,4 @@ New `DefenseLine.anchor(colony, out, spawn, posts)`, shared by both:
 - mc_talking memory bug (idea #12, fixed on our side): gemini-flash-lite sometimes wraps the JSON in a markdown fence → the GsonMemoryResponse parse fails → the conversation's memories are discarded. Upstream main (2026-08-08) is NOT fixed and no issue exists — a candidate for a first PR to sshcrack (the real fix: response_mime_type="application/json" in GeminiFlash).
 - mc_talking license: CoFH "Don't Be a Jerk" — a fork/addon is OK, the author invites PRs. Goal: PR upstream once stable.
 - The old v1.0.0 jar is archived in colonist_errands\old\ on Lovkar's PC.
+- Offline verification against Lovkar's world (used for beta.42): colony data lives in `saves/<world>/minecolonies/minecraft/overworld/colony<id>.dat` (gzip NBT: `center`, `buildingManager.buildings[].location/type/level`, `raidhistory[].spawnInfo`), terrain in `region/r.<x>>>9.<z>>>9.mca`. A 60-line Anvil reader (`/root/mca.py`: heightmap `MOTION_BLOCKING_NO_LEAVES`, palette-indexed sections) reproduces `safePost` exactly - the beta.41 sea anchor came out as water, the beta.42 anchor as 13/13 dry posts. The device bridge stages files at most 7 folders deep, so copy them to `colonist_errands\tmp\` first.
