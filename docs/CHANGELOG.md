@@ -1,3 +1,32 @@
+# Colonist Errands 2.0.0-beta.42 — the defensive line stands between the raiders and the colony
+
+A forced raid on beta.41 showed the alarm chain working end to end - the dusk warning, the
+pinpointed direction half a minute before MineColonies' own horde message, the alarm, a guard
+running to warn the player - and the automatic defense line placing **zero** towers: every post
+landed in the sea.
+
+## Fixed
+
+- **The defense line was anchored at the colony's bounding-box corner.** For a colony that sprawls
+  in the direction of the attack, that corner can lie far *beyond* the raiders' spawn - here 110
+  blocks behind them, in the water, so all 13 towers were skipped. The anchor now lies on the axis
+  of the attack just past the outermost building in that direction, and never further than three
+  quarters of the way to the raiders' spawn, so the line always stands between them and the colony.
+- **Water is no longer a dead end.** When the chosen stretch has no dry ground, the line pulls back
+  toward the town hall eight blocks at a time until half of its posts are dry - and says so in the
+  log. Only when nothing between the border and the town hall is dry do the towers stay on their
+  normal tasks.
+- The same rule applies to the `defend_here` voice command's border and raid modes, which now report
+  "every spot for a line there is water" instead of silently placing nothing.
+- A line formed at raid start (when the raid was not pinpointed in advance) is now also released by
+  the twenty-minute cap.
+
+Source and issue tracker: https://github.com/Lovkar-Squid/colonist-errands
+
+Authors: Lovkar & Claude.
+
+---
+
 # Colonist Errands 2.0.0-beta.41 — conversations that finish, and nothing cut short
 
 Five builds since beta.36, all of them from one complaint: colonists were still being cut off

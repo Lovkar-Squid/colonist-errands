@@ -407,7 +407,7 @@ Everything below works in code and compiles clean, but has not yet been seen fir
 **Proven in play since the last revision of this list** — the stall detector telling four busy builders apart from one genuinely wedged, `build_status` naming each builder's real reason, weekly guard seasons closing with awards, the bed-list repair, `[Built]` reactions, the counter chat with its customer interrupt, the memorial on a real death, and `request_craft` delivering into the player's hands.
 
 **Still unseen:**
-- The full raid chain: pinpoint warning, automatic defense line, stand-down, post-raid MVP (raids can be forced with `/mc colony raid <colonyID> tonight` followed by `/time set 13000`).
+- The automatic defense line actually forming (beta.42 anchor), stand-down, post-raid MVP. Seen on 2 Sep: dusk warning, pinpoint 25 s before MineColonies' own horde message, the alarm, the messenger running 73 blocks to the player, "the colony held". (Raids can be forced with `/mc colony raid <colonyID> tonight` followed by `/time set 13000`.)
 - The rank gate against a non-officer player; `patrol_here`; a `notify_when` trigger firing; a multi-warehouse courier round; mourning and births.
 - Assists actually scoring - every podium so far has read "0 assists".
 - `RestartNudge` completing a stuck restart by itself.
@@ -582,6 +582,35 @@ Also from that log:
 - Shop customer grace raised 12 s -> 25 s: a live session must finish its sentence before the
   excuse can even be generated; the log showed "did not stop" at 14 s.
 - Homeless warning: once per citizen per session, confirmed (3 at 14:19, one new at 14:49).
+
+## Done - v2.0.0-beta.42 (2 Sep 2026) - the defense line that formed in the sea
+
+Lovkar forced a raid on beta.41. The alarm chain worked end to end - dusk warning, `[Alarm]
+Scheduled raid pinpointed: from the north-east (spawn 592, 63, 3516)` 25 s before MineColonies'
+own "huge horde" message, the RAID broadcast, Bartolomew running 73 blocks to warn the player and
+starting the conversation on arrival, "the colony held" after `/kill` - and the defense line failed
+completely: **13x "[Defense] No dry ground near 704,3505", AUTO line - 0 tower(s)**, twice (pinpoint
+and raid start).
+
+Cause: the anchor was the colony's bounding-box corner (`maxX + 8` because the direction was mostly
+east). SquidVile sprawls far to the east (a building at x=696) while the raid spawned at x=592 - so
+the "line" stood 110 blocks BEHIND the attackers, in the sea, with no fallback at all. The same
+math served the defend_here voice command's border and raid modes.
+
+New `DefenseLine.anchor(colony, out, spawn, posts)`, shared by both:
+- The anchor lies on the AXIS of the attack, `MARGIN` (8) past the outermost building projected on
+  that axis - never at a corner the colony does not reach in that direction.
+- When the raid spawn is known (scheduled event's `getSpawnPos`, or the average of
+  `getLastSpawnPoints()` at raid start - both now remembered in `RAID_SPAWN`), the anchor is capped
+  at 75 % of the way there, so the line always stands BETWEEN raiders and colony, also for colonies
+  that grew past their own raid distance.
+- Dry-ground check on the middle five posts; if fewer than half are dry the line retreats toward
+  the town hall in 8-block steps down to 12 blocks out. Logs
+  `[Defense] Line anchored N blocks from the town hall at x,z (k/5 posts dry, pulled back from M -
+  water)`, or gives up honestly: `... no dry ground, towers stay on their normal tasks`.
+- Unmanned towers are filtered out BEFORE the anchor is chosen, so `posts` is the real count.
+- defend_here's border/raid mode reports "Every spot for a line at ... is WATER" instead of
+  silently placing nothing; the 20-minute line cap now also applies to a line formed at raid start.
 
 ## Technical notes (for continuing development)
 - Key trick: `me.sshcrack.mc_talking.ConversationManager.markBusy/markNotBusy` — mc_talking's mixins keep a busy colonist in IDLE so the MineColonies AI doesn't take over their legs. We refresh busy every tick.
