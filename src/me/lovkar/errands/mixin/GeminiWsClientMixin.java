@@ -8,6 +8,7 @@ import me.sshcrack.mc_talking.manager.GeminiStream;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
@@ -34,9 +35,14 @@ import java.util.UUID;
  *
  * 4. close() no longer cuts the voice: the stream is drained by StreamDrain
  *    before it is closed, so the last sentence is heard to the end.
+ *
+ * 5. Sessions that never end: when Gemini aborts an idle non-player session
+ *    (close 1008), mc_talking reconnects it forever and the citizen stands under
+ *    "Listening" all night. SessionReaper ends such sessions instead - see the
+ *    onClose hook and the activity flag below.
  */
 @Mixin(targets = "me.sshcrack.mc_talking.manager.GeminiWsClient", remap = false)
-public abstract class GeminiWsClientMixin {
+public abstract class GeminiWsClientMixin implements me.lovkar.errands.SessionActivity {
 
     @Shadow(remap = false)
     public abstract AbstractEntityCitizen getEntity();
@@ -44,6 +50,30 @@ public abstract class GeminiWsClientMixin {
     @Shadow(remap = false)
     @Final
     protected GeminiStream stream;
+
+    @Shadow(remap = false)
+    private boolean intentionalClose;
+
+    @Shadow(remap = false)
+    protected boolean shouldEndConversation;
+
+    /** Audio or a finished turn came out of the CURRENT connection (reset at every setup) - see SessionReaper. */
+    @Unique
+    private volatile boolean colonist_errands$spoke;
+
+    /** When the current connection completed its setup; 0 before the first one. */
+    @Unique
+    private volatile long colonist_errands$setupAt;
+
+    @Override
+    public boolean colonist_errands$spoke() {
+        return this.colonist_errands$spoke;
+    }
+
+    @Override
+    public long colonist_errands$setupAt() {
+        return this.colonist_errands$setupAt;
+    }
 
     @Redirect(
             method = "onTurnComplete",
@@ -61,6 +91,7 @@ public abstract class GeminiWsClientMixin {
 
     @Inject(method = "onGeneratedAudio", at = @At("HEAD"), cancellable = true, remap = false)
     private void colonist_errands$gateAudio(byte[] data, int sampleRate, CallbackInfo ci) {
+        this.colonist_errands$spoke = true;
         try {
             UUID id = this.getEntity().getUUID();
             // A live session started talking: any pregenerated clip of the same
@@ -75,10 +106,24 @@ public abstract class GeminiWsClientMixin {
 
     @Inject(method = "onGenerationComplete", at = @At("HEAD"), remap = false)
     private void colonist_errands$trackGenComplete(CallbackInfo ci) {
+        this.colonist_errands$spoke = true;
         try {
             AudioGate.onGenerationComplete(this.getEntity().getUUID());
         } catch (Throwable ignored) {
         }
+    }
+
+    /** A finished turn counts as activity too (text-only turns produce no audio). */
+    @Inject(method = "onTurnComplete", at = @At("HEAD"), remap = false, require = 0)
+    private void colonist_errands$trackTurn(CallbackInfo ci) {
+        this.colonist_errands$spoke = true;
+    }
+
+    /** A fresh connection starts with a clean slate - whatever it produces from here on counts. */
+    @Inject(method = "onSetupComplete", at = @At("HEAD"), remap = false, require = 0)
+    private void colonist_errands$freshConnection(CallbackInfo ci) {
+        this.colonist_errands$spoke = false;
+        this.colonist_errands$setupAt = System.currentTimeMillis();
     }
 
     @Inject(method = "close", at = @At("HEAD"), remap = false)
@@ -144,11 +189,29 @@ public abstract class GeminiWsClientMixin {
         }
     }
 
-    /** Learn rejected voices from Gemini's close reason (code 1007). */
+    /**
+     * Two things happen the moment Gemini closes a socket on us. VoiceFix learns
+     * rejected voices from the close reason (code 1007). And SessionReaper decides
+     * whether a NON-PLAYER session that Gemini aborted (code 1008 "The operation was
+     * aborted", typically after a minute and three quarters of silence) deserves
+     * mc_talking's reconnect at all: a solo line or live chat that had already been
+     * asked to end, or that produced nothing since it connected, is ended for good
+     * instead - otherwise it reconnects into an empty session, idles into the next
+     * abort, and the citizen stands under "Listening" all night. Ending it here
+     * means calling close(), which flips mc_talking's own intentionalClose flag, so
+     * the rest of onClose below treats it as an intentional close and does not
+     * reconnect. Player conversations are never touched.
+     */
     @Inject(method = "onClose", at = @At("HEAD"), remap = false, require = 0)
     private void colonist_errands$learnBrokenVoice(int code, String reason, boolean remote, CallbackInfo ci) {
         try {
             me.lovkar.errands.VoiceFix.noteCloseReason(code, reason);
+        } catch (Throwable ignored) {
+        }
+        try {
+            me.lovkar.errands.SessionReaper.onAbnormalClose(
+                    (me.sshcrack.mc_talking.manager.GeminiWsClient) (Object) this, code, reason,
+                    this.intentionalClose, this.shouldEndConversation, this.colonist_errands$spoke);
         } catch (Throwable ignored) {
         }
     }

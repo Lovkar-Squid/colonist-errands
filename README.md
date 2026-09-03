@@ -6,7 +6,9 @@ Talking Colonists gives your MineColonies citizens AI voices. Colonist Errands g
 conversations **consequences**: what you say to a colonist actually happens in the colony — and
 what a colonist tells you is checked against the colony's real state first.
 
-> **2.1.0** adds the optional integration with [Voyager - End Expeditions for MineColonies](https://www.curseforge.com/minecraft/mc-mods/voyager-end-expeditions-for-minecolonies)
+> **2.1.1** fixes the colonist who stood under "Listening" all night and never went to bed - a
+> Talking Colonists session that kept reconnecting after Gemini had dropped it (see the changelog).
+> **2.1.0** added the optional integration with [Voyager - End Expeditions for MineColonies](https://www.curseforge.com/minecraft/mc-mods/voyager-end-expeditions-for-minecolonies)
 > (see below). 2.0.0 was the first full release: 42 voice tools, built and play-tested daily on one
 > heavily played world (single-player and LAN co-op). Resurrection and births exist but are rarely
 > seen, so they have had the least testing. Report issues with your `latest.log` attached.
@@ -68,7 +70,10 @@ wearing are gone.
 the real reason (asleep, eating, on an errand, missing a tool, waiting for materials) instead of a
 false alarm; broken bed registrations are re-filed onto the right block and phantom entries dropped;
 hospital beds blocked from above are named; a worker whose restart has been pending too long is
-nudged through it.
+nudged through it; and a session watchdog ends Talking Colonists sessions that would otherwise
+reconnect forever after Gemini drops them - the colonist frozen under "Listening" who never went
+to bed - along with stale pregeneration slots, orphaned slots and busy marks nobody lifted (player
+conversations are never touched).
 
 **Audio fixes** — no doubled goodbyes, interruptible pre-generated clips with true barge-in
 semantics, citizen-to-citizen audio that follows the speakers, sessions that are drained before they

@@ -583,6 +583,50 @@ Also from that log:
   excuse can even be generated; the log showed "did not stop" at 14 s.
 - Homeless warning: once per citizen per session, confirmed (3 at 14:19, one new at 14:49).
 
+## Released - v2.1.1 (3 Sep 2026) - the colonist who would not go to bed
+
+Lovkar: "sometimes somebody does not go to sleep - it says Listening over their head and they do
+not move", and "for a couple of nights it has not said that everyone is tucked into bed."
+
+Root cause, from the log (Hada Fuyumi and Circinus Coranus, 13:36): `[RumorMill] X shared a rumor
+with Y` -> `ConversationManager.startLowPrioritySession` -> a solo `CitizenWsClient` with
+`claimSlot(Player: false)`. Both models answered the prompt with a tool call (`end_conversation`,
+`list_citizens`) and then nothing - no audio, no `Gemini turn complete` - so `onConversationEnded`
+-> `onSystemConversationEnded` (close + `releaseSlot`) never ran. 1m44s later Gemini aborted the
+idle socket (`closed: The operation was aborted. and code 1008`) -> "unrecognized close code" ->
+`ensureConnectionForQueuedInput` -> reconnect into a fresh, empty session (nothing pending) ->
+LISTENING -> next 1008 every ~2m33s, for hours; `unrecognizedCloseRetryCount` is reset in
+`onSetupComplete`, so the five-attempt cap never bites. `isCitizenBusy` (clients + addedEntities +
+busyEntities + backgroundSlots) makes mc_talking's `CitizenAIMixin.calculateNextState` return IDLE,
+so the SLEEP state is never entered and MineColonies' `EntityAISleep` never runs for them - and
+"All citizens are tucked into bed" needs every last one. Circinus was freed at 13:47 only because
+Lovkar spoke to him (`transitionToPlayer`); Hada looped until the game was closed.
+
+- `SessionReaper.onAbnormalClose`, called from `GeminiWsClientMixin.onClose` (HEAD): for a session
+  with no player (`getPlayerForEntity == null`) closed with a code other than 1000/1001/1007 and
+  outside the token-invalidated branch - if `shouldEndConversation` is set, or nothing came out of
+  this connection (audio or a finished turn, tracked per connection by the mixin and reset in
+  `onSetupComplete`) -> `end()`: `client.close()` (sets `intentionalClose`, so mc_talking's own
+  onClose takes its "intentional close" path and does not reconnect), then the cleanup mc_talking
+  itself would have done - for a solo `CitizenWsClient` its `onSystemConversationEnded` callback
+  (reflection: identity-checked `clients.remove`, `releaseSlot`, `recordCooldown`), otherwise an
+  identity-checked `unregisterExternalClient` + `recordCooldown`; the peer of a live C2C chat is
+  asked to finish its line (`endConversationWhenPossible`); status NONE unless another session owns
+  the label. A session that WAS talking when the socket dropped keeps mc_talking's reconnect - once;
+  if the new connection just sits there, the next drop ends it.
+- `SessionReaper.tick` (every 100 ticks, server thread): a solo line open >= 75 s after setup with
+  nothing said -> end (before Gemini's own abort); non-player session open >= 10 min -> end;
+  non-player session whose socket has been closed >= 90 s but still sits in `clients` -> end;
+  background slot (`backgroundSlots`, reflection) PREGEN >= 3 min / COMPACTION >= 10 min ->
+  `releaseBackgroundSlot`; `addedEntities` entry with no client, no player and no urgent walk
+  >= 3 min -> `releaseSlot`; `UrgentContactHandler.walkingCitizens` >= 4 min -> `abortWalking`
+  (mc_talking has no timeout there); `busyEntities` >= 15 min -> `markNotBusy`. Every action is
+  logged as `[Sessions] <name> - <what>; ... so they can get on with their day`.
+- `SessionActivity`: duck interface the mixin implements onto `GeminiWsClient`
+  (`colonist_errands$spoke()`, `colonist_errands$setupAt()`).
+- Never touches a player's conversation. Built while Lovkar was in the game, so not play-tested
+  before the swap; the first evening with `[Sessions]` lines in the log will tell.
+
 ## Released - v2.1.0 (3 Sep 2026) - the Voyagers join the conversation
 
 Integration with **Voyager - End Expeditions for MineColonies** (our second addon: a profession that

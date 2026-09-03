@@ -1,3 +1,31 @@
+# Colonist Errands 2.1.1 — the colonist who would not go to bed
+
+Fixes a Talking Colonists session leak that left a citizen standing under **"Listening"** all
+night - and, because one sleepless citizen is enough, silenced MineColonies' "All citizens are
+tucked into bed".
+
+- **What happened.** A citizen's solo line (a rumor being passed on, a mumble, an urgent contact)
+  whose model answered the prompt with a tool call and then nothing: no audio, no turn, so the
+  session never reached its normal end. About a minute and three quarters later Gemini aborted the
+  idle socket (close code 1008, "The operation was aborted"); Talking Colonists treats that as an
+  unknown code and reconnected - into an empty session that idled into the next abort, and so on
+  until the game was closed (its retry cap resets on every successful setup, so it never bit). All
+  the while the citizen counted as busy, and a busy citizen's AI is pinned to idle: no work, no
+  wandering, no bed.
+- **The fix.** A session watchdog (`[Sessions]` lines in the log). A non-player session that Gemini
+  drops is now ended for good instead of reconnected when it had already been asked to end, or had
+  produced nothing since it connected - its slot is handed back exactly the way Talking Colonists
+  does at the end of a line, and the label over the head is cleared. A solo line that has said
+  nothing 75 s after connecting is ended before Gemini's abort would even get to it. And a slow
+  sweep every five seconds frees anything else that can pin a citizen: pregeneration slots older
+  than three minutes, non-player sessions older than ten, closed sockets still holding a slot,
+  slots with no session behind them, urgent walks to the player that never arrive, and "busy"
+  marks nobody lifted.
+- **What it never does.** Touch a conversation the player is in - those keep Talking Colonists'
+  own reconnect behaviour.
+
+Everything else is unchanged from 2.1.0.
+
 # Colonist Errands 2.1.0 — the Voyagers join the conversation
 
 Integration with [Voyager - End Expeditions for MineColonies](https://www.curseforge.com/minecraft/mc-mods/voyager-end-expeditions-for-minecolonies),
