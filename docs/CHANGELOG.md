@@ -1,3 +1,17 @@
+# Colonist Errands 2.1.2 — the jar that would not open
+
+A re-release of 2.1.1 with a correctly packaged jar. Nothing in the code changed.
+
+- **What happened.** The 2.1.1 jar was assembled by patching the 2.1.0 jar entry by entry, and the
+  result had wrong local ZIP headers. Java's random-access reader was happy with it (which is why
+  the check passed), but the game's launcher reads mod jars sequentially and stopped at the second
+  entry: `An unexpected IO error occurred trying to setup the game directory - invalid entry size
+  (expected 3093364736 but got 55 bytes)` on the early loading screen, before the mod list even
+  appears. So 2.1.1 could not start the game at all; 2.1.0 was never affected.
+- **The fix.** 2.1.2 is built and packaged the normal way (`javac` + `jar`, see BUILDING.md) and
+  verified with a sequential read. The broken 2.1.1 file has been pulled from CurseForge and GitHub.
+
+Thanks to colebo5 and General50001 for the report.
 # Colonist Errands 2.1.1 — the colonist who would not go to bed
 
 Fixes a Talking Colonists session leak that left a citizen standing under **"Listening"** all
