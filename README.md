@@ -2,6 +2,8 @@
 
 **Voice-command addon for [Talking Colonists](https://www.curseforge.com/minecraft/mc-mods/talking-colonists) + [MineColonies](https://www.curseforge.com/minecraft/mc-mods/minecolonies).**
 
+**[Discord](https://discord.gg/BVztrTtXFu)** - questions, dev builds and bug reports.
+
 Talking Colonists gives your MineColonies citizens AI voices. Colonist Errands gives those
 conversations **consequences**: what you say to a colonist actually happens in the colony — and
 what a colonist tells you is checked against the colony's real state first.
