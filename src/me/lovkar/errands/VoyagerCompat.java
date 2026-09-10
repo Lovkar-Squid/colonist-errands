@@ -33,6 +33,13 @@ public final class VoyagerCompat {
     public static final String JOB_KEY = "voyager:voyager";
     private static final String JOB_CLASS = "me.lovkar.voyager.colony.JobVoyager";
     private static final String BUILDING_CLASS = "me.lovkar.voyager.colony.BuildingVoyager";
+    // Voyager 0.3: the Observatory (astronomer) and the Photo Booth (photographer)
+    public static final String JOB_ASTRONOMER = "voyager:astronomer";
+    public static final String JOB_PHOTOGRAPHER = "voyager:photographer";
+    private static final String JOB_ASTRONOMER_CLASS = "me.lovkar.voyager.colony.JobAstronomer";
+    private static final String JOB_PHOTOGRAPHER_CLASS = "me.lovkar.voyager.colony.JobPhotographer";
+    private static final String OBSERVATORY_CLASS = "me.lovkar.voyager.colony.BuildingObservatory";
+    private static final String BOOTH_CLASS = "me.lovkar.voyager.colony.BuildingPhotoBooth";
 
     private static volatile Boolean loaded;
     private static final Map<String, Method> METHODS = new ConcurrentHashMap<>();
@@ -62,6 +69,20 @@ public final class VoyagerCompat {
 
     /** Is this citizen a Voyager (by job registry key, class name as a fallback)? */
     public static boolean isVoyager(ICitizenData data) {
+        return hasJob(data, JOB_KEY, JOB_CLASS);
+    }
+
+    /** Is this citizen the Observatory's astronomer (Voyager 0.3)? */
+    public static boolean isAstronomer(ICitizenData data) {
+        return hasJob(data, JOB_ASTRONOMER, JOB_ASTRONOMER_CLASS);
+    }
+
+    /** Is this citizen the Photo Booth's photographer (Voyager 0.3)? */
+    public static boolean isPhotographer(ICitizenData data) {
+        return hasJob(data, JOB_PHOTOGRAPHER, JOB_PHOTOGRAPHER_CLASS);
+    }
+
+    private static boolean hasJob(ICitizenData data, String key, String className) {
         if (data == null || !isLoaded()) {
             return false;
         }
@@ -71,12 +92,12 @@ public final class VoyagerCompat {
                 return false;
             }
             try {
-                if (JOB_KEY.equals(job.getJobRegistryEntry().getKey().toString())) {
+                if (key.equals(job.getJobRegistryEntry().getKey().toString())) {
                     return true;
                 }
             } catch (Throwable ignored) {
             }
-            return JOB_CLASS.equals(job.getClass().getName());
+            return className.equals(job.getClass().getName());
         } catch (Throwable t) {
             return false;
         }
@@ -87,10 +108,30 @@ public final class VoyagerCompat {
         return building != null && isLoaded() && BUILDING_CLASS.equals(building.getClass().getName());
     }
 
+    public static boolean isObservatory(IBuilding building) {
+        return building != null && isLoaded() && OBSERVATORY_CLASS.equals(building.getClass().getName());
+    }
+
+    public static boolean isPhotoBooth(IBuilding building) {
+        return building != null && isLoaded() && BOOTH_CLASS.equals(building.getClass().getName());
+    }
+
+    /**
+     * The building in one English paragraph, as Voyager itself describes it
+     * ({@code describeForChat()} on the Observatory and the Photo Booth, Voyager 0.3.0-alpha.20+);
+     * "" on an older Voyager.
+     */
+    public static String describe(IBuilding building) {
+        Object text = call(building, "describeForChat");
+        return text == null ? "" : String.valueOf(text);
+    }
+
     // ------------------------------------------------------------------ job state (reflection)
 
     /** JobVoyager.Status name: IDLE, PACKING, WAITING_SUPPLIES, WAITING_TOOLS, WAITING_PLAN,
-     *  WAITING_WINDOW, WAITING_ROCKET, BOARDING, AWAY, RETURNING - or "" when unknown. */
+     *  WAITING_WINDOW, WAITING_ROCKET, BOARDING, AWAY, RETURNING - or "" when unknown. Also the
+     *  astronomer's (IDLE, WALKING, OBSERVING, CLOUDED, BLOCKED) and the photographer's (IDLE,
+     *  CRAFTING, PORTRAIT, SITTING, CHRONICLE, FILING): every Voyager job has getStatus(). */
     public static String status(ICitizenData data) {
         Object status = call(jobOf(data), "getStatus");
         return status == null ? "" : String.valueOf(status);

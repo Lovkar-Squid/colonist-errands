@@ -12,6 +12,9 @@ what a colonist tells you is checked against the colony's real state first.
 > from starting ("invalid entry size" on the early loading screen); nothing in the code changed.
 > **2.1.1** fixes the colonist who stood under "Listening" all night and never went to bed - a
 > Talking Colonists session that kept reconnecting after Gemini had dropped it (see the changelog).
+> **2.2.0** teaches the two professions of Voyager 0.3 - the Observatory's astronomer and the Photo
+> Booth's photographer - what their work is, so they talk about the night watch, the sky book, portraits
+> and the colony chronicle instead of guessing (see the changelog).
 > **2.1.0** added the optional integration with [Voyager - End Expeditions for MineColonies](https://www.curseforge.com/minecraft/mc-mods/voyager-end-expeditions-for-minecolonies)
 > (see below). 2.0.0 was the first full release: 42 voice tools, built and play-tested daily on one
 > heavily played world (single-player and LAN co-op). Resurrection and births exist but are rarely
@@ -95,6 +98,16 @@ like astronauts while they wait, and the one who stayed behind welcomes the othe
 and hears the story. Everyone else in the colony knows who flies, who is out there right now and
 who just came home.
 
+With **Voyager 0.3** the **astronomer** and the **photographer** join in too. The astronomer knows they
+work nights at the Observatory's telescope (or up at a lookout with the colony's camera and a guard
+escort), develop plates in the darkroom, and fill the colony's sky book - which look and level their
+Observatory has, what lens it reaches, what is in the book and what came in last, tonight's sky, and
+what they are doing at this very moment, down to "caught the Crab Nebula tonight - a first for the
+colony". The photographer knows their studio, the bench work (cameras, film, frames, albums), the
+portraits of colonists and of paying visitors, the prices and the sales so far, and the colony
+chronicle they keep of every building going up. Both are told by Voyager itself, so they never invent
+a discovery or a sale. Everyone else hears a sentence of news about each.
+
 ## Requirements
 
 - Minecraft **1.21.1**, NeoForge **21.1.x**
@@ -103,7 +116,7 @@ who just came home.
 - Simple Voice Chat (required by Talking Colonists) and a microphone
 - **MC Trade Post** is optional — the marketplace and economy features simply stay quiet without it
 - **MineColonies Compatibility** is optional — a linked *Common Network Storage* counts as warehouse stock
-- **Voyager 0.2.0+** is optional — Voyagers get their lore, crew talk and colony news; without it nothing changes
+- **Voyager 0.2.0+** is optional — Voyagers get their lore, crew talk and colony news; with **Voyager 0.3.0+** the astronomer and the photographer get theirs; without it nothing changes
 
 In multiplayer only the **host/server** needs the API key; clients just install the same mods.
 

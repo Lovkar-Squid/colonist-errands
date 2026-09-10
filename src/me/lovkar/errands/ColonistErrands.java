@@ -142,10 +142,10 @@ public class ColonistErrands {
                 String group = TOOL_GROUPS.get(action.getName());
                 map.put(action.getName(), group == null ? action : new RankGatedAction(action, group));
             }
-            LOGGER.info("[ColonistErrands] Registered tools (v2.1.2): 42 tools - the alpha.10 set plus "
+            LOGGER.info("[ColonistErrands] Registered tools (v2.2.0): 42 tools - the alpha.10 set plus "
                     + "request_craft, courier_board, guard_gear, trade_status, mint_coins, remember_fallen, "
                     + "arm_guards, prioritize, build_status; rank-gated per config. Voyager mod {}",
-                    VoyagerCompat.isLoaded() ? "detected - Voyager lore and crew talk enabled" : "not installed");
+                    VoyagerCompat.isLoaded() ? "detected - Voyager, astronomer and photographer lore enabled" : "not installed");
         } catch (Throwable t) {
             LOGGER.error("[ColonistErrands] Failed to register AI tools - the mc_talking internals may have changed", t);
         }

@@ -1,3 +1,26 @@
+# Colonist Errands 2.2.0 — the astronomer and the photographer join the conversation
+
+Voyager 0.3 adds two professions - the **astronomer** at the Observatory and the **photographer**
+at the Photo Booth - and until now Talking Colonists knew them only as "a colonist with a job it
+had never heard of". They now know their work as well as a Voyager knows the End.
+
+- **Astronomer truth.** The astronomer's prompt says what the job is (nights at the telescope,
+  asleep by day, living at the Observatory, the lookout with a guard escort, the darkroom, the
+  colony's sky book that first sightings pay into), what the Observatory is (its look, level and
+  lens, how many nights have been kept, what is in the book and what came in last, tonight's sky
+  event) and what they are doing **right now** ("keeping the watch from the lookout under the open
+  sky, camera in hand; caught the Crab Nebula tonight - a first for the colony").
+- **Photographer truth.** The same for the photographer: the studio, the bench work (cameras, film,
+  frames, albums), portraits of colonists, paying visitors, the colony chronicle, prices and sales
+  so far, and the moment ("camera up in the studio, photographing Anna").
+- **Colony news.** Everybody else hears one sentence about the Observatory (who keeps the watch,
+  the latest entry in the sky book) and one about the Photo Booth, alongside the Voyager news.
+- Both jobs are **CHATTY** for citizen-to-citizen chats: the astronomer is idle all day and the
+  studio is a social place.
+- Everything comes from Voyager itself (its status lines and `describeForChat()`, read by
+  reflection, Voyager 0.3.0-alpha.20 or newer); with an older Voyager the two are simply
+  colonists with a job, as before, and without Voyager nothing changes.
+
 # Colonist Errands 2.1.2 — the jar that would not open
 
 A re-release of 2.1.1 with a correctly packaged jar. Nothing in the code changed.
