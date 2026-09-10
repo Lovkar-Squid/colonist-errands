@@ -15,21 +15,18 @@ import com.minecolonies.core.entity.ai.workers.AbstractAISkeleton;
 import me.lovkar.errands.ColonistErrands;
 import me.lovkar.errands.ItemFinder;
 import me.lovkar.errands.Texts;
-import me.sshcrack.gemini_live_lib.gson.properties.ObjectProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.PrimitiveProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.Property;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
+import me.lovkar.errands.RankGuard;
+import me.lovkar.errands.tc.ErrandCommand;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-public class FarmerPlantAction extends PlayerFunctionAction {
+public class FarmerPlantAction extends ErrandCommand {
 
     public FarmerPlantAction() {
         super("farmer_plant",
@@ -38,15 +35,10 @@ public class FarmerPlantAction extends PlayerFunctionAction {
                         + "assigned to an EMPTY field. If every field is taken, nothing is changed - report the current "
                         + "assignments and ask the player; only call again with replace=true if the player confirms "
                         + "replacing one. Pass the crop exactly as the player named it. Fails politely if you are not a farmer.",
-                (Property) new ObjectProperty(new HashMap<String, Property>() {{
-                    put("crop", new PrimitiveProperty(PrimitiveProperty.Type.STRING, true));
-                    put("replace", new PrimitiveProperty(PrimitiveProperty.Type.BOOLEAN, false));
-                }}));
+                params("crop", string(true), "replace", bool(false)), RankGuard.GROUP_ERRANDS);
     }
-
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
         JsonObject result = new JsonObject();
         ICitizenData data = citizen.getCitizenData();
         IBuilding wb = data == null ? null : data.getWorkBuilding();

@@ -7,14 +7,14 @@ import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import com.minecolonies.core.colony.buildings.AbstractBuildingGuards;
 import me.lovkar.errands.ErrandManager;
 import me.lovkar.errands.Texts;
-import me.sshcrack.mc_talking.ConversationManager;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import me.lovkar.errands.RankGuard;
+import me.lovkar.errands.tc.ErrandCommand;
+import me.lovkar.errands.tc.Talk;
+import net.minecraft.server.level.ServerPlayer;
 
 import java.util.Optional;
 
-public class EveryoneHomeAction extends PlayerFunctionAction {
+public class EveryoneHomeAction extends ErrandCommand {
 
     private static final int MAX_SENT = 60;
 
@@ -23,12 +23,10 @@ public class EveryoneHomeAction extends PlayerFunctionAction {
                 "Curfew: send every colonist (who has a home) to their house. Guards stay on duty. "
                         + "Use when the player orders everyone to go home, e.g. because of danger or nightfall. "
                         + "Citizens walk off one after another; they resume their routine after arriving (or ~6 minutes). "
-                        + "Afterwards say a short goodbye and call leave_conversation.");
+                        + "Afterwards say a short goodbye and call {leave_conversation}.", RankGuard.GROUP_MILITARY);
     }
-
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
         JsonObject result = new JsonObject();
         int count = 0;
         for (ICitizenData cd : colony.getCitizenManager().getCitizens()) {
@@ -39,7 +37,7 @@ public class EveryoneHomeAction extends PlayerFunctionAction {
             if (!c.isAlive() || c.isRemoved()) continue;
             if (cd.getWorkBuilding() instanceof AbstractBuildingGuards) continue; // guards keep guarding
             boolean isSpeaker = c.getUUID().equals(citizen.getUUID());
-            if (!isSpeaker && ConversationManager.isCitizenBusy(c)) continue;
+            if (!isSpeaker && Talk.isBusy(c)) continue;
             if (ErrandManager.hasErrand(c)) continue;
             if (count >= MAX_SENT) break;
             ErrandManager.enqueuePosErrand(c, cd.getHomeBuilding().getPosition(), "home", 20 * 360, 25.0);

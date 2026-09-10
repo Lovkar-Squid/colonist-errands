@@ -12,16 +12,12 @@ import me.lovkar.errands.CraftWatch;
 import me.lovkar.errands.ErrandBuildings;
 import me.lovkar.errands.ItemFinder;
 import me.lovkar.errands.Texts;
-import me.sshcrack.gemini_live_lib.gson.properties.ObjectProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.PrimitiveProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.Property;
-import me.sshcrack.mc_talking.ConversationManager;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
+import me.lovkar.errands.RankGuard;
+import me.lovkar.errands.tc.ErrandCommand;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -45,7 +41,7 @@ import java.util.UUID;
  * recipes implicitly - they must be taught, or the recipe ships with the
  * building).
  */
-public class RequestCraftAction extends PlayerFunctionAction {
+public class RequestCraftAction extends ErrandCommand {
 
     private static final int MAX_ENTRIES = 8;
 
@@ -63,22 +59,15 @@ public class RequestCraftAction extends PlayerFunctionAction {
                         + "- or 'to' set to 'me' when they want it CARRIED TO THEM once it is finished ('make me a pickaxe and bring it over') "
                         + "-> the request is filed on that building, so the courier delivers it straight there; without 'to' it "
                         + "goes to the postbox. Answers honestly when nobody in the colony knows a recipe. For something that "
-                        + "only needs carrying from the warehouse use fetch_item instead.",
-                (Property) new ObjectProperty(new HashMap<String, Property>() {{
-                    put("item", new PrimitiveProperty(PrimitiveProperty.Type.STRING, false));
-                    put("count", new PrimitiveProperty(PrimitiveProperty.Type.INTEGER, false));
-                    put("items", new PrimitiveProperty(PrimitiveProperty.Type.STRING, false));
-                    put("to", new PrimitiveProperty(PrimitiveProperty.Type.STRING, false));
-                }}));
+                        + "only needs carrying from the warehouse use {fetch_item} instead.",
+                params("item", string(false), "count", integer(false), "items", string(false), "to", string(false)), RankGuard.GROUP_ERRANDS);
     }
 
     /** One parsed shopping-list entry. */
     private record Entry(Item item, int count, String spoken) {
     }
-
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
         JsonObject result = new JsonObject();
         if (parameters == null) {
             result.addProperty("success", false);
@@ -159,7 +148,7 @@ public class RequestCraftAction extends PlayerFunctionAction {
 
         final List<Entry> todo = entries;
         final String dest = toQuery;
-        final UUID playerId = ConversationManager.getPlayerForEntity(citizen.getUUID());
+        final UUID playerId = player.getUUID();
         String info;
         try {
             MinecraftServer server = citizen.getServer();
@@ -260,7 +249,7 @@ public class RequestCraftAction extends PlayerFunctionAction {
                 } catch (Throwable ignored) {
                 }
                 String stockNote = stock > 0
-                        ? " (the warehouse does hold " + stock + " though - offer fetch_item)"
+                        ? " (the warehouse does hold " + stock + " though - offer " + me.lovkar.errands.tc.ToolNames.providerName("fetch_item") + ")"
                         : "";
                 if (unstaffedBuilding != null) {
                     refused.add(itemName + ": the " + unstaffedBuilding

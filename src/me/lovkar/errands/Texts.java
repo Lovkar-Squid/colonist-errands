@@ -10,7 +10,8 @@ public final class Texts {
      */
     public static final String GOODBYE =
             " (Silent instruction - never read this aloud and never mention tool names to the player: "
-                    + "speak one short goodbye in your own words, then invoke the leave_conversation tool.)";
+                    + "speak one short goodbye in your own words, then invoke the "
+                    + me.lovkar.errands.tc.ToolNames.providerName("leave_conversation") + " tool.)";
 
     public static final String SILENT =
             " (Silent instruction - never read this aloud and never mention tool names to the player.)";

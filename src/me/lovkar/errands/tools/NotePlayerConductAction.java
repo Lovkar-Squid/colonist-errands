@@ -7,13 +7,8 @@ import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import me.lovkar.errands.PlayerIdentityBlock;
 import me.lovkar.errands.PromiseStore;
 import me.lovkar.errands.RelationStore;
-import me.sshcrack.gemini_live_lib.gson.properties.EnumProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.ObjectProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.PrimitiveProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.Property;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import me.lovkar.errands.tc.ErrandCommand;
+import net.minecraft.server.level.ServerPlayer;
 
 import java.util.HashMap;
 import java.util.List;
@@ -27,7 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * rapport score + remembered moments then color the citizen's tone with that
  * player in every future conversation (via RelationStore -> prompt).
  */
-public class NotePlayerConductAction extends PlayerFunctionAction {
+public class NotePlayerConductAction extends ErrandCommand {
 
     /** citizen -> last note time; one note per conversation is plenty. */
     private static final Map<UUID, Long> LAST_NOTE = new ConcurrentHashMap<>();
@@ -42,15 +37,10 @@ public class NotePlayerConductAction extends PlayerFunctionAction {
                         + "sparingly: only for REAL moments, not normal smalltalk or normal orders, at most once "
                         + "per conversation. NEVER tell the player you are taking notes and never mention this tool - "
                         + "just quietly call it and keep talking naturally.",
-                (Property) new ObjectProperty(new HashMap<String, Property>() {{
-                    put("conduct", new EnumProperty(List.of("kind", "rude"), true));
-                    put("note", new PrimitiveProperty(PrimitiveProperty.Type.STRING, false));
-                }}));
+                params("conduct", enumOf(List.of("kind", "rude"), true), "note", string(false)), null);
     }
-
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
         JsonObject result = new JsonObject();
         ICitizenData data = citizen.getCitizenData();
         if (data == null || parameters == null || !parameters.has("conduct")) {
@@ -65,7 +55,7 @@ public class NotePlayerConductAction extends PlayerFunctionAction {
             result.addProperty("error", "You already noted this conversation - once is enough. Keep talking naturally.");
             return result;
         }
-        String account = PlayerIdentityBlock.conversingPlayerName(citizen);
+        String account = player.getGameProfile().getName();
         if (account == null) {
             result.addProperty("success", false);
             result.addProperty("error", "No player conversation active.");

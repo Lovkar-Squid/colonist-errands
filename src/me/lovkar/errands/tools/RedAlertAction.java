@@ -10,12 +10,12 @@ import com.minecolonies.core.colony.buildings.modules.settings.GuardTaskSetting;
 import me.lovkar.errands.ColonistErrands;
 import me.lovkar.errands.ErrandManager;
 import me.lovkar.errands.Texts;
-import me.sshcrack.mc_talking.ConversationManager;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
+import me.lovkar.errands.RankGuard;
+import me.lovkar.errands.tc.ErrandCommand;
+import me.lovkar.errands.tc.Talk;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.Optional;
 
@@ -24,7 +24,7 @@ import java.util.Optional;
  * to Guard mode manning its own tower. Ends with 'stand down'/dismiss (guards
  * restored) - civilians resume on arrival by themselves.
  */
-public class RedAlertAction extends PlayerFunctionAction {
+public class RedAlertAction extends ErrandCommand {
 
     private static final int MAX_SENT = 60;
 
@@ -33,14 +33,12 @@ public class RedAlertAction extends PlayerFunctionAction {
                 "EMERGENCY PROTOCOL, use only when the player declares an emergency ('red alert', 'sound the "
                         + "alarm', 'everyone take cover'): ALL civilians immediately head home AND every guard "
                         + "tower switches to Guard mode - guards man their own towers. For a defensive line toward "
-                        + "a specific direction or the current raid use defend_here instead (it can be called after "
-                        + "this). The player ends the alert with 'stand down' (dismiss tool). Confirm like a "
-                        + "soldier, briefly.");
+                        + "a specific direction or the current raid use {defend_here} instead (it can be called after "
+                        + "this). The player ends the alert with 'stand down' ({dismiss} tool). Confirm like a "
+                        + "soldier, briefly.", RankGuard.GROUP_MILITARY);
     }
-
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
         JsonObject result = new JsonObject();
         int sentHome = 0;
         int towers = 0;
@@ -53,7 +51,7 @@ public class RedAlertAction extends PlayerFunctionAction {
             if (!c.isAlive() || c.isRemoved()) continue;
             if (cd.getWorkBuilding() instanceof AbstractBuildingGuards) continue;
             boolean isSpeaker = c.getUUID().equals(citizen.getUUID());
-            if (!isSpeaker && ConversationManager.isCitizenBusy(c)) continue;
+            if (!isSpeaker && Talk.isBusy(c)) continue;
             if (ErrandManager.hasErrand(c)) continue;
             if (sentHome >= MAX_SENT) break;
             ErrandManager.enqueuePosErrand(c, cd.getHomeBuilding().getPosition(), "home", 20 * 360, 25.0);

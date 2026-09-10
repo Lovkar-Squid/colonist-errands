@@ -1,5 +1,6 @@
 package me.lovkar.errands;
 
+import me.lovkar.errands.tc.Talk;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.IColonyManager;
@@ -10,7 +11,6 @@ import com.minecolonies.api.colony.colonyEvents.IColonyRaidEvent;
 import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import com.minecolonies.core.colony.buildings.AbstractBuildingGuards;
 import com.minecolonies.core.colony.buildings.modules.settings.GuardTaskSetting;
-import me.sshcrack.mc_talking.duck.CitizenDataMemoryExtended;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
@@ -486,8 +486,7 @@ public final class RaidWatcher {
             }
             if (guard != null) {
                 try {
-                    ((CitizenDataMemoryExtended) guard.getCitizenData()).mc_talking$getOrInitializeMemory()
-                            .addEvent("ALARM! A raid is attacking " + colonyName(colony) + " RIGHT NOW from the " + dirName
+                    Talk.remember(guard.getCitizenData(), "ALARM! A raid is attacking " + colonyName(colony) + " RIGHT NOW from the " + dirName
                                     + "! I am running to warn " + player.getGameProfile().getName()
                                     + " so they can organize the defense!");
                 } catch (Throwable ignored) {

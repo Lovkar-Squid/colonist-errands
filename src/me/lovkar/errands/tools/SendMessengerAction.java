@@ -7,19 +7,14 @@ import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import me.lovkar.errands.ErrandBuildings;
 import me.lovkar.errands.ErrandManager;
 import me.lovkar.errands.Texts;
-import me.sshcrack.gemini_live_lib.gson.properties.EnumProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.ObjectProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.PrimitiveProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.Property;
-import me.sshcrack.mc_talking.ConversationManager;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import me.lovkar.errands.RankGuard;
+import me.lovkar.errands.tc.ErrandCommand;
+import net.minecraft.server.level.ServerPlayer;
 
 import java.util.HashMap;
 import java.util.UUID;
 
-public class SendMessengerAction extends PlayerFunctionAction {
+public class SendMessengerAction extends ErrandCommand {
 
     public SendMessengerAction() {
         super("send_messenger",
@@ -30,23 +25,18 @@ public class SendMessengerAction extends PlayerFunctionAction {
                         + "building_name is REQUIRED: copy the EXACT word or phrase the player used for the destination building, "
                         + "verbatim and in the player's language (e.g. 'gatehouse', 'north tower') - named buildings are matched "
                         + "by it first and it takes priority over the type. "
-                        + "You start walking when this conversation ends - say a short goodbye and call leave_conversation.",
-                (Property) new ObjectProperty(new HashMap<String, Property>() {{
-                    put("target", new EnumProperty(ErrandBuildings.BUILDING_TYPES, true));
-                    put("building_name", new PrimitiveProperty(PrimitiveProperty.Type.STRING, true));
-                }}));
+                        + "You start walking when this conversation ends - say a short goodbye and call {leave_conversation}.",
+                params("target", enumOf(ErrandBuildings.BUILDING_TYPES, true), "building_name", string(true)), RankGuard.GROUP_ERRANDS);
     }
-
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
         JsonObject result = new JsonObject();
         if (parameters == null || !parameters.has("target")) {
             result.addProperty("success", false);
             result.addProperty("error", "Missing 'target' parameter.");
             return result;
         }
-        UUID playerId = ConversationManager.getPlayerForEntity(citizen.getUUID());
+        UUID playerId = player.getUUID();
         if (playerId == null) {
             result.addProperty("success", false);
             result.addProperty("error", "No player conversation is active.");

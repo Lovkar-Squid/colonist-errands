@@ -76,7 +76,7 @@ def convert(path: pathlib.Path) -> None:
     src = src.replace('extends PlayerFunctionAction', f'extends {base}')
 
     # constructor: the super(...) call up to the closing ');' of the constructor body
-    cm = re.search(r'(super\(\s*"' + re.escape(name) + r'"\s*,)(.*?)(\)\s*;\s*\n\s*\})', src, re.S)
+    cm = re.search(r'(super\(\s*"' + re.escape(name) + r'"\s*,)(.*?)(\);\n    \}\n)', src, re.S)
     if not cm:
         raise SystemExit(f'{path.name}: super call not found')
     body = cm.group(2)

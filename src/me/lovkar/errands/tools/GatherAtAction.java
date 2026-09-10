@@ -1,5 +1,6 @@
 package me.lovkar.errands.tools;
 
+import me.lovkar.errands.tc.Talk;
 import com.google.gson.JsonObject;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.IColony;
@@ -9,17 +10,11 @@ import com.minecolonies.core.colony.buildings.AbstractBuildingGuards;
 import me.lovkar.errands.ErrandBuildings;
 import me.lovkar.errands.ErrandManager;
 import me.lovkar.errands.Texts;
-import me.sshcrack.gemini_live_lib.gson.properties.EnumProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.ObjectProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.PrimitiveProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.Property;
-import me.sshcrack.mc_talking.ConversationManager;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
+import me.lovkar.errands.RankGuard;
+import me.lovkar.errands.tc.ErrandCommand;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -28,7 +23,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public class GatherAtAction extends PlayerFunctionAction {
+public class GatherAtAction extends ErrandCommand {
 
     private static final int MAX_GATHER = 10;
     private static final List<String> GATHER_TARGETS = buildTargets();
@@ -49,26 +44,19 @@ public class GatherAtAction extends PlayerFunctionAction {
                         + "who='guards' is a military muster - ONLY guards come (they leave their posts and resume duty afterwards). "
                         + "count: how many to send (1-10; default 10) - use it when the player names a number "
                         + "(e.g. 'five guards to the gatehouse'). "
-                        + "Everyone HOLDS at the gathering point until the player dismisses them (dismiss tool) or ~10 minutes pass. "
+                        + "Everyone HOLDS at the gathering point until the player dismisses them ({dismiss} tool) or ~10 minutes pass. "
                         + "Citizens already busy are skipped. "
                         + "If the player names the gathering place (e.g. 'the gatehouse'), also pass it as building_name - "
                         + "renamed buildings are found by name and take priority. "
                         + "Use when the player asks to gather everyone, call a meeting, or muster the guards somewhere.",
-                (Property) new ObjectProperty(new HashMap<String, Property>() {{
-                    put("target", new EnumProperty(GATHER_TARGETS, false));
-                    put("building_name", new PrimitiveProperty(PrimitiveProperty.Type.STRING, false));
-                    put("who", new EnumProperty(List.of("anyone", "guards"), false));
-                    put("count", new PrimitiveProperty(PrimitiveProperty.Type.INTEGER, false));
-                }}));
+                params("target", enumOf(GATHER_TARGETS, false), "building_name", string(false), "who", enumOf(List.of("anyone", "guards"), false), "count", integer(false)), RankGuard.GROUP_ERRANDS);
     }
-
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
         JsonObject result = new JsonObject();
-        UUID playerId = ConversationManager.getPlayerForEntity(citizen.getUUID());
+        UUID playerId = player.getUUID();
         MinecraftServer server = citizen.getServer();
-        ServerPlayer player = (playerId == null || server == null) ? null : server.getPlayerList().getPlayer(playerId);
+        
         if (player == null) {
             result.addProperty("success", false);
             result.addProperty("error", "No player conversation is active.");
@@ -140,7 +128,7 @@ public class GatherAtAction extends PlayerFunctionAction {
             if (c.level() != player.level()) continue;
             boolean isGuard = cd.getWorkBuilding() instanceof AbstractBuildingGuards;
             if (guardsOnly != isGuard) continue; // default: guards keep guarding; muster: ONLY guards
-            if (ConversationManager.isCitizenBusy(c)) continue;            // talking or already on an errand
+            if (Talk.isBusy(c)) continue;            // talking or already on an errand
             if (ErrandManager.hasErrand(c)) continue;
             candidates.add(c);
         }

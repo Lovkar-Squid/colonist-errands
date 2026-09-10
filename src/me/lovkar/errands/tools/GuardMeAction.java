@@ -11,21 +11,16 @@ import com.minecolonies.core.colony.buildings.modules.settings.GuardTaskSetting;
 import me.lovkar.errands.Texts;
 import me.lovkar.errands.ColonistErrands;
 import me.lovkar.errands.ErrandManager;
-import me.sshcrack.gemini_live_lib.gson.properties.EnumProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.ObjectProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.Property;
-import me.sshcrack.mc_talking.ConversationManager;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
+import me.lovkar.errands.RankGuard;
+import me.lovkar.errands.tc.ErrandCommand;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
 
-public class GuardMeAction extends PlayerFunctionAction {
+public class GuardMeAction extends ErrandCommand {
 
     public GuardMeAction() {
         super("guard_me",
@@ -33,16 +28,12 @@ public class GuardMeAction extends PlayerFunctionAction {
                         + "Follow mode - ONLY works if you are a guard. who='all_towers': EVERY guard tower in the colony "
                         + "escorts the player - use when the player orders ALL guards to protect them; any citizen may "
                         + "relay that order. The escort starts when the conversation ends and lasts until the player says "
-                        + "it's enough / you can go (stop_errand, one tower) or 'dismissed'/'stand down' (dismiss, all), "
+                        + "it's enough / you can go ({stop_errand}, one tower) or 'dismissed'/'stand down' ({dismiss}, all), "
                         + "or at most 20 minutes.",
-                (Property) new ObjectProperty(new HashMap<String, Property>() {{
-                    put("who", new EnumProperty(List.of("my_tower", "all_towers"), false));
-                }}));
+                params("who", enumOf(List.of("my_tower", "all_towers"), false)), RankGuard.GROUP_MILITARY);
     }
-
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
         JsonObject result = new JsonObject();
         boolean allTowers = false;
         try {
@@ -51,9 +42,9 @@ public class GuardMeAction extends PlayerFunctionAction {
             }
         } catch (Throwable ignored) {
         }
-        UUID playerId = ConversationManager.getPlayerForEntity(citizen.getUUID());
+        UUID playerId = player.getUUID();
         MinecraftServer server = citizen.getServer();
-        ServerPlayer player = (playerId == null || server == null) ? null : server.getPlayerList().getPlayer(playerId);
+        
         if (player == null) {
             result.addProperty("success", false);
             result.addProperty("error", "No player conversation is active.");

@@ -8,16 +8,11 @@ import com.minecolonies.api.entity.citizen.Skill;
 import com.minecolonies.core.colony.buildings.AbstractBuildingGuards;
 import me.lovkar.errands.ErrandManager;
 import me.lovkar.errands.Texts;
-import me.sshcrack.gemini_live_lib.gson.properties.ObjectProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.PrimitiveProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.Property;
-import me.sshcrack.mc_talking.ConversationManager;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
+import me.lovkar.errands.RankGuard;
+import me.lovkar.errands.tc.ErrandCommand;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -26,7 +21,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public class SummonGuardsAction extends PlayerFunctionAction {
+public class SummonGuardsAction extends ErrandCommand {
 
     private record Ranked(AbstractEntityCitizen entity, int score, String name) {
     }
@@ -35,20 +30,16 @@ public class SummonGuardsAction extends PlayerFunctionAction {
         super("summon_guards",
                 "Summon the STRONGEST guards of the colony to the player: guards are ranked by their combat skills "
                         + "and the top 'count' (1-10, default 3) walk to the player's current position and HOLD there "
-                        + "until the player dismisses them (dismiss tool). "
+                        + "until the player dismisses them ({dismiss} tool). "
                         + "Use when the player asks for the strongest/best guard(s) to come to them.",
-                (Property) new ObjectProperty(new HashMap<String, Property>() {{
-                    put("count", new PrimitiveProperty(PrimitiveProperty.Type.INTEGER, false));
-                }}));
+                params("count", integer(false)), RankGuard.GROUP_MILITARY);
     }
-
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
         JsonObject result = new JsonObject();
-        UUID playerId = ConversationManager.getPlayerForEntity(citizen.getUUID());
+        UUID playerId = player.getUUID();
         MinecraftServer server = citizen.getServer();
-        ServerPlayer player = (playerId == null || server == null) ? null : server.getPlayerList().getPlayer(playerId);
+        
         if (player == null) {
             result.addProperty("success", false);
             result.addProperty("error", "No player conversation is active.");

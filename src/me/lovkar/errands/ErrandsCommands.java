@@ -2,7 +2,6 @@ package me.lovkar.errands;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.context.CommandContext;
-import me.sshcrack.mc_talking.config.McTalkingConfig;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
@@ -33,13 +32,50 @@ public final class ErrandsCommands {
                 .then(Commands.literal("reloadtalking").executes(ErrandsCommands::reloadTalking)));
     }
 
+    /**
+     * Talking Colonists' config class is not part of its addon API, so it is reached by reflection
+     * here - the one place Errands still touches the mod's internals, and it fails soft: if a
+     * future version moves or renames it, the command reports that and nothing else breaks.
+     */
+    private static final class TalkingConfig {
+        final Object handler;   // the YACL ConfigClassHandler
+        final Class<?> type;    // McTalkingConfig
+
+        TalkingConfig() throws ReflectiveOperationException {
+            type = Class.forName("me.sshcrack.mc_talking.config.McTalkingConfig");
+            handler = type.getField("INSTANCE").get(null);
+        }
+
+        Object instance() throws ReflectiveOperationException {
+            return handler.getClass().getMethod("instance").invoke(handler);
+        }
+
+        boolean load() throws ReflectiveOperationException {
+            return (Boolean) handler.getClass().getMethod("load").invoke(handler);
+        }
+
+        String apiKey() throws ReflectiveOperationException {
+            return (String) type.getField("geminiApiKey").get(instance());
+        }
+
+        boolean hasApiKey() throws ReflectiveOperationException {
+            return (Boolean) type.getMethod("hasGeminiApiKey").invoke(null);
+        }
+
+        String model() throws ReflectiveOperationException {
+            return String.valueOf(type.getField("currentAiModel").get(instance()));
+        }
+    }
+
     private static int reloadTalking(final CommandContext<CommandSourceStack> context) {
         final CommandSourceStack source = context.getSource();
         final String oldKey;
         final boolean loaded;
+        final TalkingConfig config;
         try {
-            oldKey = McTalkingConfig.INSTANCE.instance().geminiApiKey;
-            loaded = McTalkingConfig.INSTANCE.load();
+            config = new TalkingConfig();
+            oldKey = config.apiKey();
+            loaded = config.load();
         } catch (final Throwable t) {
             ColonistErrands.LOGGER.error("[ColonistErrands] /errands reloadtalking failed", t);
             source.sendFailure(Component.literal("[Colonist Errands] Could not reload the Talking Colonists config: "
@@ -51,10 +87,19 @@ public final class ErrandsCommands {
                     + "check the quotes and commas, see the server log. The previous settings stay in effect."));
             return 0;
         }
-        final String newKey = McTalkingConfig.INSTANCE.instance().geminiApiKey;
-        final boolean hasKey = McTalkingConfig.hasGeminiApiKey();
+        final String newKey;
+        final boolean hasKey;
+        final String model;
+        try {
+            newKey = config.apiKey();
+            hasKey = config.hasApiKey();
+            model = config.model();
+        } catch (final Throwable t) {
+            ColonistErrands.LOGGER.error("[ColonistErrands] /errands reloadtalking: config reloaded but could not be read back", t);
+            source.sendSuccess(() -> Component.literal("[Colonist Errands] Talking Colonists config reloaded."), true);
+            return 1;
+        }
         final boolean changed = !Objects.equals(oldKey == null ? "" : oldKey.trim(), newKey == null ? "" : newKey.trim());
-        final String model = String.valueOf(McTalkingConfig.INSTANCE.instance().currentAiModel);
         final String line;
         if (!hasKey) {
             line = "[Colonist Errands] Talking Colonists config reloaded - but no Gemini API key is set in "

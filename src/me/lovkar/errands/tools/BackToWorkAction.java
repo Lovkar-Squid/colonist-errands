@@ -1,5 +1,6 @@
 package me.lovkar.errands.tools;
 
+import me.lovkar.errands.tc.PairChats;
 import com.google.gson.JsonObject;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.IColony;
@@ -8,13 +9,12 @@ import com.minecolonies.api.entity.ai.statemachine.AIOneTimeEventTarget;
 import com.minecolonies.api.entity.ai.statemachine.states.AIWorkerState;
 import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import com.minecolonies.core.entity.ai.workers.AbstractAISkeleton;
-import me.lovkar.errands.C2cAudioFollower;
 import me.lovkar.errands.ColonistErrands;
 import me.lovkar.errands.ErrandManager;
 import me.lovkar.errands.Texts;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import me.lovkar.errands.RankGuard;
+import me.lovkar.errands.tc.ErrandCommand;
+import net.minecraft.server.level.ServerPlayer;
 
 import java.util.UUID;
 
@@ -23,25 +23,23 @@ import java.util.UUID;
  * Ends the addressed citizen's idle chat, kicks their work AI, and does the
  * same for their (current or recent) chat partner.
  */
-public class BackToWorkAction extends PlayerFunctionAction {
+public class BackToWorkAction extends ErrandCommand {
 
     public BackToWorkAction() {
         super("back_to_work",
                 "The player orders you back to work ('back to work', 'stop chatting', 'go do your job', "
                         + "'quit gossiping'). Your idle chat ends and you AND the colleague you were chatting with "
                         + "both resume your jobs immediately. This is a final order: confirm it with ONE short "
-                        + "apologetic sentence, then call leave_conversation right away. "
-                        + "If you have no job, say so honestly instead.");
+                        + "apologetic sentence, then call {leave_conversation} right away. "
+                        + "If you have no job, say so honestly instead.", RankGuard.GROUP_ERRANDS);
     }
-
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
         JsonObject result = new JsonObject();
         ICitizenData data = citizen.getCitizenData();
 
-        boolean hadChat = C2cAudioFollower.abortFor(citizen.getUUID());
-        UUID partnerId = C2cAudioFollower.partnerOf(citizen.getUUID());
+        boolean hadChat = PairChats.abortFor(citizen.getUUID());
+        UUID partnerId = PairChats.partnerOf(citizen.getUUID());
         String partnerNote = "";
 
         // Send the chat partner back to work too.

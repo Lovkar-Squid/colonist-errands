@@ -1,11 +1,11 @@
 package me.lovkar.errands;
 
+import me.lovkar.errands.tc.Talk;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.buildings.IBuilding;
 import com.minecolonies.api.colony.workorders.IWorkOrder;
 import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
-import me.sshcrack.mc_talking.duck.CitizenDataMemoryExtended;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 
@@ -90,7 +90,7 @@ public final class BuilderAssist {
 
     private static void addMemory(ICitizenData cd, String event) {
         try {
-            ((CitizenDataMemoryExtended) cd).mc_talking$getOrInitializeMemory().addEvent(event);
+            Talk.remember(cd, event);
         } catch (Throwable ignored) {
         }
     }

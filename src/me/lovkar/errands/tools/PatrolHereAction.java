@@ -10,16 +10,11 @@ import com.minecolonies.core.colony.buildings.modules.settings.GuardTaskSetting;
 import me.lovkar.errands.ColonistErrands;
 import me.lovkar.errands.ErrandManager;
 import me.lovkar.errands.Texts;
-import me.sshcrack.gemini_live_lib.gson.properties.EnumProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.ObjectProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.Property;
-import me.sshcrack.mc_talking.ConversationManager;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
+import me.lovkar.errands.RankGuard;
+import me.lovkar.errands.tc.ErrandCommand;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
 import java.util.List;
@@ -30,7 +25,7 @@ import java.util.List;
  * MANUAL patrol route. More points are added the same way; "normal patrols"
  * resets back to automatic.
  */
-public class PatrolHereAction extends PlayerFunctionAction {
+public class PatrolHereAction extends ErrandCommand {
 
     public PatrolHereAction() {
         super("patrol_here",
@@ -39,14 +34,10 @@ public class PatrolHereAction extends PlayerFunctionAction {
                         + "current spot as ANOTHER point to the route (player walks somewhere and says 'add this "
                         + "point too'). mode='reset': clear the manual route and return to normal automatic patrols. "
                         + "Your whole tower patrols the route. Fails politely if you are not a guard.",
-                (Property) new ObjectProperty(new HashMap<String, Property>() {{
-                    put("mode", new EnumProperty(List.of("start", "add", "reset"), true));
-                }}));
+                params("mode", enumOf(List.of("start", "add", "reset"), true)), RankGuard.GROUP_MILITARY);
     }
-
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
         JsonObject result = new JsonObject();
         ICitizenData data = citizen.getCitizenData();
         if (data == null || !(data.getWorkBuilding() instanceof AbstractBuildingGuards tower)) {
@@ -62,8 +53,8 @@ public class PatrolHereAction extends PlayerFunctionAction {
         } catch (Throwable ignored) {
         }
         MinecraftServer server = citizen.getServer();
-        java.util.UUID playerId = ConversationManager.getPlayerForEntity(citizen.getUUID());
-        ServerPlayer player = (playerId == null || server == null) ? null : server.getPlayerList().getPlayer(playerId);
+        java.util.UUID playerId = player.getUUID();
+        
 
         try {
             if (mode.equals("reset")) {

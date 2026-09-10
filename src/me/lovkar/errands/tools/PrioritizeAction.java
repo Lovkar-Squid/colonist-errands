@@ -6,13 +6,10 @@ import com.minecolonies.api.colony.workorders.IServerWorkOrder;
 import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import me.lovkar.errands.ColonistErrands;
 import me.lovkar.errands.Texts;
-import me.sshcrack.gemini_live_lib.gson.properties.ObjectProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.PrimitiveProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.Property;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
+import me.lovkar.errands.RankGuard;
+import me.lovkar.errands.tc.ErrandCommand;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.MinecraftServer;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -27,7 +24,7 @@ import java.util.List;
  * Deliveries are a different story and the tool says so: MineColonies fixes
  * delivery order by when the request was made, and no setting changes that.
  */
-public class PrioritizeAction extends PlayerFunctionAction {
+public class PrioritizeAction extends ErrandCommand {
 
     private static final int TOP = 10;
 
@@ -40,16 +37,11 @@ public class PrioritizeAction extends PlayerFunctionAction {
                         + "With 'after' it is placed directly behind that other build order - pass 'after' as the "
                         + "other building's name, or as 'current' when the player means whatever is being built right "
                         + "now. With no 'what' at all, or 'list', it just reads the queue back. BUILDING orders only - "
-                        + "for guard gear use arm_guards, for an item use request_craft.",
-                (Property) new ObjectProperty(new HashMap<String, Property>() {{
-                    put("what", new PrimitiveProperty(PrimitiveProperty.Type.STRING, false));
-                    put("after", new PrimitiveProperty(PrimitiveProperty.Type.STRING, false));
-                }}));
+                        + "for guard gear use {arm_guards}, for an item use {request_craft}.",
+                params("what", string(false), "after", string(false)), RankGuard.GROUP_JOBS);
     }
-
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
         JsonObject result = new JsonObject();
         String want = null;
         try {

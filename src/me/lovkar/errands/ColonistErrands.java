@@ -43,8 +43,10 @@ import me.lovkar.errands.tools.SendToBuildingAction;
 import me.lovkar.errands.tools.StopErrandAction;
 import me.lovkar.errands.tools.SummonGuardsAction;
 import me.lovkar.errands.tools.WaitHereAction;
-import me.sshcrack.mc_talking.manager.tools.AITools;
-import me.sshcrack.mc_talking.manager.tools.FunctionAction;
+import me.lovkar.errands.tc.ErrandTool;
+import me.lovkar.errands.tc.PairChats;
+import me.lovkar.errands.tc.Talk;
+import me.lovkar.errands.tc.TcBridge;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.Mod;
@@ -54,9 +56,7 @@ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import org.slf4j.Logger;
 
-import java.lang.reflect.Field;
 import java.util.List;
-import java.util.Map;
 
 @Mod("colonist_errands")
 public class ColonistErrands {
@@ -70,85 +70,36 @@ public class ColonistErrands {
         PromiseStore.load();
     }
 
-    /** Lovkar's idea #30: tool -> permission group (which rank may order what, see RankGuard). */
-    private static final Map<String, String> TOOL_GROUPS = Map.ofEntries(
-            // chat: harmless questions, reports, promises
-            Map.entry("citizen_report", RankGuard.GROUP_CHAT),
-            Map.entry("colony_report", RankGuard.GROUP_CHAT),
-            Map.entry("why_unhappy", RankGuard.GROUP_CHAT),
-            Map.entry("research_status", RankGuard.GROUP_CHAT),
-            Map.entry("find_citizen", RankGuard.GROUP_CHAT),
-            Map.entry("check_stock", RankGuard.GROUP_CHAT),
-            Map.entry("make_promise", RankGuard.GROUP_CHAT),
-            Map.entry("resolve_promise", RankGuard.GROUP_CHAT),
-            Map.entry("guard_leaderboard", RankGuard.GROUP_CHAT),
-            Map.entry("trade_status", RankGuard.GROUP_CHAT),
-            Map.entry("remember_fallen", RankGuard.GROUP_CHAT),
-            Map.entry("build_status", RankGuard.GROUP_CHAT),
-            Map.entry("call_me", RankGuard.GROUP_CHAT),
-            // errands: everyday orders
-            Map.entry("send_to_building", RankGuard.GROUP_ERRANDS),
-            Map.entry("follow_player", RankGuard.GROUP_ERRANDS),
-            Map.entry("stop_errand", RankGuard.GROUP_ERRANDS),
-            Map.entry("come_here", RankGuard.GROUP_ERRANDS),
-            Map.entry("wait_here", RankGuard.GROUP_ERRANDS),
-            Map.entry("gather_at", RankGuard.GROUP_ERRANDS),
-            Map.entry("send_messenger", RankGuard.GROUP_ERRANDS),
-            Map.entry("fetch_item", RankGuard.GROUP_ERRANDS),
-            Map.entry("deliver_item", RankGuard.GROUP_ERRANDS),
-            Map.entry("farmer_plant", RankGuard.GROUP_ERRANDS),
-            Map.entry("notify_when", RankGuard.GROUP_ERRANDS),
-            Map.entry("back_to_work", RankGuard.GROUP_ERRANDS),
-            Map.entry("call_citizen", RankGuard.GROUP_ERRANDS),
-            Map.entry("request_craft", RankGuard.GROUP_ERRANDS),
-            Map.entry("courier_board", RankGuard.GROUP_ERRANDS),
-            Map.entry("dismiss", RankGuard.GROUP_ERRANDS),
-            // military: defense & alarms
-            Map.entry("guard_me", RankGuard.GROUP_MILITARY),
-            Map.entry("summon_guards", RankGuard.GROUP_MILITARY),
-            Map.entry("defend_here", RankGuard.GROUP_MILITARY),
-            Map.entry("everyone_home", RankGuard.GROUP_MILITARY),
-            Map.entry("red_alert", RankGuard.GROUP_MILITARY),
-            Map.entry("patrol_here", RankGuard.GROUP_MILITARY),
-            Map.entry("guard_gear", RankGuard.GROUP_MILITARY),
-            Map.entry("arm_guards", RankGuard.GROUP_MILITARY),
-            // jobs: colony management
-            Map.entry("take_job", RankGuard.GROUP_JOBS),
-            Map.entry("mint_coins", RankGuard.GROUP_JOBS),
-            Map.entry("prioritize", RankGuard.GROUP_JOBS));
-            // leave_conversation and note_player_conduct are NEVER gated.
-
-    @SuppressWarnings("unchecked")
+    /**
+     * Every Errands tool, registered with Talking Colonists' addon API. Which rank may order what
+     * (Lovkar's idea #30) travels with each tool now - see the group each constructor names and
+     * RankGuard for the configurable minimum ranks. leave_conversation and note_player_conduct are
+     * never gated.
+     */
     private static void registerTools() {
-        try {
-            Field f = AITools.class.getDeclaredField("playerConversationOnlyTools");
-            f.setAccessible(true);
-            Map<String, FunctionAction> map = (Map<String, FunctionAction>) f.get(null);
-            for (FunctionAction action : List.of(
-                    new SendToBuildingAction(), new FollowPlayerAction(), new StopErrandAction(),
-                    new ComeHereAction(), new WaitHereAction(), new GatherAtAction(), new EveryoneHomeAction(),
-                    new GuardMeAction(), new SendMessengerAction(), new CitizenReportAction(),
-                    new LeaveConversationAction(), new DismissAction(), new SummonGuardsAction(),
-                    new DefendHereAction(), new CallMeAction(), new CheckStockAction(),
-                    new FetchItemAction(), new FarmerPlantAction(), new NotifyWhenAction(), new BackToWorkAction(),
-                    new CallCitizenAction(), new FindCitizenAction(), new ColonyReportAction(),
-                    new WhyUnhappyAction(), new ResearchStatusAction(), new RedAlertAction(),
-                    new TakeJobAction(), new DeliverItemAction(), new PatrolHereAction(),
-                    new MakePromiseAction(), new ResolvePromiseAction(), new NotePlayerConductAction(),
-                    new GuardLeaderboardAction(), new RequestCraftAction(), new CourierBoardAction(),
-                    new GuardGearAction(), new TradeStatusAction(), new MintCoinsAction(),
-                    new RememberFallenAction(), new ArmGuardsAction(), new PrioritizeAction(),
-                    new BuildStatusAction())) {
-                String group = TOOL_GROUPS.get(action.getName());
-                map.put(action.getName(), group == null ? action : new RankGatedAction(action, group));
-            }
-            LOGGER.info("[ColonistErrands] Registered tools (v2.2.0): 42 tools - the alpha.10 set plus "
-                    + "request_craft, courier_board, guard_gear, trade_status, mint_coins, remember_fallen, "
-                    + "arm_guards, prioritize, build_status; rank-gated per config. Voyager mod {}",
-                    VoyagerCompat.isLoaded() ? "detected - Voyager, astronomer and photographer lore enabled" : "not installed");
-        } catch (Throwable t) {
-            LOGGER.error("[ColonistErrands] Failed to register AI tools - the mc_talking internals may have changed", t);
+        final List<ErrandTool> tools = List.of(
+                new SendToBuildingAction(), new FollowPlayerAction(), new StopErrandAction(),
+                new ComeHereAction(), new WaitHereAction(), new GatherAtAction(), new EveryoneHomeAction(),
+                new GuardMeAction(), new SendMessengerAction(), new CitizenReportAction(),
+                new LeaveConversationAction(), new DismissAction(), new SummonGuardsAction(),
+                new DefendHereAction(), new CallMeAction(), new CheckStockAction(),
+                new FetchItemAction(), new FarmerPlantAction(), new NotifyWhenAction(), new BackToWorkAction(),
+                new CallCitizenAction(), new FindCitizenAction(), new ColonyReportAction(),
+                new WhyUnhappyAction(), new ResearchStatusAction(), new RedAlertAction(),
+                new TakeJobAction(), new DeliverItemAction(), new PatrolHereAction(),
+                new MakePromiseAction(), new ResolvePromiseAction(), new NotePlayerConductAction(),
+                new GuardLeaderboardAction(), new RequestCraftAction(), new CourierBoardAction(),
+                new GuardGearAction(), new TradeStatusAction(), new MintCoinsAction(),
+                new RememberFallenAction(), new ArmGuardsAction(), new PrioritizeAction(),
+                new BuildStatusAction());
+        final int registered = TcBridge.register(tools);
+        if (registered < 0) {
+            return;
         }
+        LOGGER.info("[ColonistErrands] Registered {} of {} tools with Talking Colonists (v3.0.0-alpha.1, addon API {}); "
+                + "rank-gated per config. Voyager mod {}", registered, tools.size(),
+                me.sshcrack.mc_talking.api.TalkingColonistsApi.API_MAJOR_VERSION,
+                VoyagerCompat.isLoaded() ? "detected - Voyager, astronomer and photographer lore enabled" : "not installed");
     }
 
     @SubscribeEvent
@@ -158,13 +109,10 @@ public class ColonistErrands {
 
     @SubscribeEvent
     public void onServerTick(ServerTickEvent.Post event) {
-        SlotGuard.resetForTick();
         ErrandManager.tick(event.getServer());
         WatchManager.tick(event.getServer());
         RaidWatcher.tick(event.getServer());
-        StreamDrain.tick(event.getServer());
-        SessionReaper.tick(event.getServer());
-        C2cAudioFollower.tick(event.getServer());
+        PairChats.tick(event.getServer());
         FamilyChats.tick(event.getServer());
         ShopChats.tick(event.getServer());
         GroupChats.tick(event.getServer());
@@ -237,7 +185,7 @@ public class ColonistErrands {
         GroupChats.clearAll();
         VoyagerLore.clearAll();
         VoyagerChats.clearAll();
-        StreamDrain.clearAll();
-        SessionReaper.clearAll();
+        PairChats.clearAll();
+        Talk.releaseAll();
     }
 }

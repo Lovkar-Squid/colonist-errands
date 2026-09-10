@@ -8,35 +8,28 @@ import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import com.minecolonies.api.tileentities.AbstractTileEntityRack;
 import me.lovkar.errands.ColonistErrands;
 import me.lovkar.errands.ItemFinder;
-import me.sshcrack.gemini_live_lib.gson.properties.ObjectProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.PrimitiveProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.Property;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
+import me.lovkar.errands.RankGuard;
+import me.lovkar.errands.tc.ErrandQuery;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
 
-public class CheckStockAction extends PlayerFunctionAction {
+public class CheckStockAction extends ErrandQuery {
 
     public CheckStockAction() {
         super("check_stock",
                 "Check how much of an item the colony's warehouse(s) currently hold. "
                         + "Pass the item exactly as the player named it (e.g. 'iron ingot', 'dark oak planks', 'eggplant'). "
                         + "Use when the player asks how much of something is in stock / available.",
-                (Property) new ObjectProperty(new HashMap<String, Property>() {{
-                    put("item", new PrimitiveProperty(PrimitiveProperty.Type.STRING, true));
-                }}));
+                params("item", string(true)), RankGuard.GROUP_CHAT);
     }
-
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
         JsonObject result = new JsonObject();
         if (parameters == null || !parameters.has("item")) {
             result.addProperty("success", false);

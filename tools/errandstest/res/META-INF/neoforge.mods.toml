@@ -1,0 +1,20 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="MIT"
+[[mods]]
+modId="errandstest"
+version="1.0.0"
+displayName="Colonist Errands test"
+description="Headless smoke test for Colonist Errands on the Talking Colonists 2.0 API."
+[[dependencies.errandstest]]
+modId="colonist_errands"
+type="required"
+versionRange="*"
+ordering="AFTER"
+side="SERVER"
+[[dependencies.errandstest]]
+modId="voyagercolonytest"
+type="required"
+versionRange="*"
+ordering="AFTER"
+side="SERVER"

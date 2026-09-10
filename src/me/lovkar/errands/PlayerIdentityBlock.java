@@ -72,7 +72,7 @@ public final class PlayerIdentityBlock {
         } catch (Throwable ignored) {
         }
         sb.append("\n- If someone is notably KIND or notably RUDE to you in conversation, quietly call the ")
-                .append("note_player_conduct tool (never mention doing so) - you remember how people treat you.");
+                .append(me.lovkar.errands.tc.ToolNames.providerName("note_player_conduct")).append(" tool (never mention doing so) - you remember how people treat you.");
         return sb.toString();
     }
 

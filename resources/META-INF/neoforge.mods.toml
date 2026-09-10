@@ -5,9 +5,9 @@ issueTrackerURL="https://github.com/Lovkar-Squid/colonist-errands/issues"
 
 [[mods]]
 modId="colonist_errands"
-version="2.2.0"
+version="3.0.0-alpha.1"
 displayName="Colonist Errands"
-description='''Voice-command addon for Talking Colonists + MineColonies: send colonists on errands, couriers fetch and deliver, job switching, promises citizens remember (and auto-detect you keeping!), per-player relationships and colony-rank permissions, raid alarms with auto-defense, family chats, and a stack of voice/audio fixes. Made by Lovkar & Claude.'''
+description='''Voice-command addon for Talking Colonists 2.0 + MineColonies: send colonists on errands, couriers fetch and deliver, job switching, promises citizens remember (and auto-detect you keeping!), per-player relationships and colony-rank permissions, raid alarms with auto-defense, family, shop and three-way chats. Built on the Talking Colonists addon API. Made by Lovkar & Claude.'''
 authors="Lovkar & Claude"
 displayURL="https://github.com/Lovkar-Squid/colonist-errands"
 
@@ -31,7 +31,7 @@ side="BOTH"
 [[dependencies.colonist_errands]]
 modId="mc_talking"
 type="required"
-versionRange="[1.7,1.8)"
+versionRange="[2.0.0-alpha,3.0)"
 ordering="AFTER"
 side="BOTH"
 

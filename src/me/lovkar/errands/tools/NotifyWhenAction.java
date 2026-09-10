@@ -5,20 +5,15 @@ import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import me.lovkar.errands.Texts;
 import me.lovkar.errands.WatchManager;
-import me.sshcrack.gemini_live_lib.gson.properties.EnumProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.ObjectProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.PrimitiveProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.Property;
-import me.sshcrack.mc_talking.ConversationManager;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import me.lovkar.errands.RankGuard;
+import me.lovkar.errands.tc.ErrandCommand;
+import net.minecraft.server.level.ServerPlayer;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
 
-public class NotifyWhenAction extends PlayerFunctionAction {
+public class NotifyWhenAction extends ErrandCommand {
 
     public NotifyWhenAction() {
         super("notify_when",
@@ -29,23 +24,17 @@ public class NotifyWhenAction extends PlayerFunctionAction {
                         + "notify='come_to_me': you walk to the player and report the find in person. "
                         + "Pass the item exactly as the player named it ('diamond', 'gold', 'iron'...). One item per call - "
                         + "call twice for two items. The watch expires after about an hour.",
-                (Property) new ObjectProperty(new HashMap<String, Property>() {{
-                    put("item", new PrimitiveProperty(PrimitiveProperty.Type.STRING, true));
-                    put("count", new PrimitiveProperty(PrimitiveProperty.Type.INTEGER, false));
-                    put("notify", new EnumProperty(List.of("chat", "come_to_me"), false));
-                }}));
+                params("item", string(true), "count", integer(false), "notify", enumOf(List.of("chat", "come_to_me"), false)), RankGuard.GROUP_ERRANDS);
     }
-
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
         JsonObject result = new JsonObject();
         if (parameters == null || !parameters.has("item")) {
             result.addProperty("success", false);
             result.addProperty("error", "Missing 'item'.");
             return result;
         }
-        UUID playerId = ConversationManager.getPlayerForEntity(citizen.getUUID());
+        UUID playerId = player.getUUID();
         if (playerId == null) {
             result.addProperty("success", false);
             result.addProperty("error", "No player conversation is active.");

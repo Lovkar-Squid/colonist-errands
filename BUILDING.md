@@ -29,10 +29,12 @@ javac -encoding UTF-8 --release 21 -proc:none \
       $(find src -name '*.java')
 ```
 
-`stubsrc/` contains four tiny compile-only stubs (`com.mojang.authlib.GameProfile`,
-`com.mojang.brigadier.Message`, `com.mojang.serialization.Keyable`,
-`dev.isxander.yacl3.api.NameableEnum`) for classes that exist at runtime but are awkward to put on
-the compile classpath. Compile them into `stubs/` first if you don't have that folder yet:
+`stubsrc/` contains three tiny compile-only stubs (`com.mojang.authlib.GameProfile`,
+`com.mojang.brigadier.Message`, `com.mojang.serialization.Keyable`) for classes that exist at
+runtime but are awkward to put on the compile classpath. Since 3.0 the mod compiles against
+**Talking Colonists' API jar only** (`mc_talking-api-<version>-1.21.1-neoforge.jar` in `libs/`,
+from its GitHub release), never the full mod jar - the full jar is needed only at runtime, so
+keep it out of `libs/` (a `libs-runtime/` folder is the convention here). Compile them into `stubs/` first if you don't have that folder yet:
 
 ```bash
 javac -encoding UTF-8 --release 21 -cp "libs/*" -d stubs $(find stubsrc -name '*.java')
@@ -47,17 +49,30 @@ jar cf colonist_errands-<version>.jar -C build . -C resources .
 ```
 
 That's the whole build. The jar contains the compiled classes, `META-INF/neoforge.mods.toml`,
-and `colonist_errands.mixins.json` (12 mixins, `remap=false` - all targets are mod classes with
-stable names).
+and `colonist_errands.mixins.json` (2 mixins since 3.0, both on MineColonies classes,
+`remap=false`; the ten mixins on Talking Colonists internals went away with the port to its addon
+API).
+
+## Headless smoke test
+
+`tools/errandstest/` is a tiny server-side test mod (like Voyager's `colonytest`): in a colony the
+Voyager colony test builds it fetches every Errands tool back out of Talking Colonists' registry and
+calls it through the public contract with a fake player as colony owner, checks the activity lease
+an errand takes, asks the prompt contributor for its blocks from the server thread and from a
+background thread, writes and reads a memory, starts a pair chat and a controlled session. Compile
+it against `build/` and drop it into the test server's `mods/` next to the Errands jar; it prints
+`[errandstest] DONE` when it got through. Without a Gemini key the conversations fail at the
+provider, which is expected - the test is about the plumbing.
 
 ## Notes for porting to new dependency versions
 
-The addon reaches into Talking Colonists and MineColonies internals (mixins + reflection). When
-bumping either dependency, re-verify the touched members exist with `javap -c` before shipping:
-`AITools.playerConversationOnlyTools`, `ConversationManager.markBusy/startPlayerConversation/
-getPlayerForEntity`, `GeminiStream` buffer fields, `PregenerationPlayback.ACTIVE_PREGENERATED_PLAYBACK`,
-`CitizenPromptService.generate*` signatures, and the MineColonies module/settings APIs used in
-`ErrandBuildings`, `GuardSettings` and `TakeJobAction`.
+Since 3.0 everything Talking Colonists-side goes through its addon API (`me.sshcrack.mc_talking.api`,
+see `src/me/lovkar/errands/tc/`): tools, prompt contributor, memory, conversations, speech and
+urgency rules, pregeneration. Two things still reach past it by reflection and fail soft if they
+move: `/errands reloadtalking` (the `McTalkingConfig` class) and `ToolNames.verify` (asks the
+internal tool runtime what function name the model sees, to keep tool cross-references right).
+The MineColonies module/settings APIs used in `ErrandBuildings`, `GuardSettings` and `TakeJobAction`
+still deserve a `javap` look when bumping MineColonies.
 
 The watchdogs read MineColonies internals that are easy to miss when porting:
 `AbstractEntityCitizen.getEntityStateController()` (the `CitizenAIState` enum),

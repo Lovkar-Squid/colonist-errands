@@ -1,11 +1,11 @@
 package me.lovkar.errands;
 
+import me.lovkar.errands.tc.Talk;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.IColonyManager;
 import com.minecolonies.api.colony.buildings.IBuilding;
 import com.minecolonies.core.colony.jobs.AbstractJobStructure;
-import me.sshcrack.mc_talking.duck.CitizenDataMemoryExtended;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
@@ -128,7 +128,7 @@ public final class ConstructionWatcher {
                                 : "Word went round: the " + name + " has been upgraded to level " + to
                                 + ". People are talking about what it will change.";
                     }
-                    ((CitizenDataMemoryExtended) cd).mc_talking$getOrInitializeMemory().addEvent(event);
+                    Talk.remember(cd, event);
                 } catch (Throwable ignored) {
                 }
             }

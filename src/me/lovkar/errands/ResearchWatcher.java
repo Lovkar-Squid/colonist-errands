@@ -1,12 +1,12 @@
 package me.lovkar.errands;
 
+import me.lovkar.errands.tc.Talk;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.IColonyManager;
 import com.minecolonies.api.research.IGlobalResearchTree;
 import com.minecolonies.api.research.ILocalResearch;
 import com.minecolonies.core.colony.jobs.JobResearch;
-import me.sshcrack.mc_talking.duck.CitizenDataMemoryExtended;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.ComponentContents;
 import net.minecraft.network.chat.MutableComponent;
@@ -103,7 +103,7 @@ public final class ResearchWatcher {
             for (ICitizenData cd : colony.getCitizenManager().getCitizens()) {
                 try {
                     boolean researcher = cd.getJob() instanceof JobResearch;
-                    ((CitizenDataMemoryExtended) cd).mc_talking$getOrInitializeMemory().addEvent(
+                    Talk.remember(cd, 
                             researcher
                                     ? "I FINISHED the research " + name + " at the university. Months of work - I am "
                                     + "quietly very proud of it."

@@ -5,23 +5,21 @@ import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import me.lovkar.errands.ErrandManager;
 import me.lovkar.errands.Texts;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import me.lovkar.errands.RankGuard;
+import me.lovkar.errands.tc.ErrandCommand;
+import net.minecraft.server.level.ServerPlayer;
 
-public class DismissAction extends PlayerFunctionAction {
+public class DismissAction extends ErrandCommand {
 
     public DismissAction() {
         super("dismiss",
                 "Stand-down order for the whole colony: releases ALL gathered/summoned citizens waiting at a "
                         + "gathering point, ends all guard escorts, and stands the defensive formation down - "
                         + "everyone returns to their normal duty. "
-                        + "Use when the player says 'dismissed', 'you can all go', 'stand down', 'razpustite se'.");
+                        + "Use when the player says 'dismissed', 'you can all go', 'stand down', 'razpustite se'.", RankGuard.GROUP_ERRANDS);
     }
-
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
         JsonObject result = new JsonObject();
         int n = ErrandManager.dismissAll();
         result.addProperty("success", true);

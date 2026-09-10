@@ -1,11 +1,11 @@
 package me.lovkar.errands;
 
+import me.lovkar.errands.tc.Talk;
 import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.IColonyManager;
 import com.minecolonies.api.colony.buildings.IBuilding;
 import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import com.minecolonies.api.tileentities.AbstractTileEntityRack;
-import me.sshcrack.mc_talking.duck.CitizenDataMemoryExtended;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
@@ -237,8 +237,7 @@ public final class CraftWatch {
                 int take = Math.min(p.count, have);
                 final String sourceName = source == target ? p.targetName : ErrandBuildings.bestName(source);
                 try {
-                    ((CitizenDataMemoryExtended) courier.getCitizenData()).mc_talking$getOrInitializeMemory()
-                            .addEvent("A crafted order just landed at the " + sourceName + ": " + take + "x "
+                    Talk.remember(courier.getCitizenData(), "A crafted order just landed at the " + sourceName + ": " + take + "x "
                                     + itemName + ". I am carrying it to the player who ordered it.");
                 } catch (Throwable ignored) {
                 }

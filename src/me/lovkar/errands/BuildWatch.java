@@ -1,5 +1,6 @@
 package me.lovkar.errands;
 
+import me.lovkar.errands.tc.Talk;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.IColonyManager;
@@ -15,7 +16,6 @@ import com.minecolonies.core.colony.buildings.AbstractBuildingStructureBuilder;
 import com.minecolonies.core.colony.jobs.AbstractJobStructure;
 import com.minecolonies.core.entity.ai.workers.AbstractAISkeleton;
 import com.minecolonies.core.entity.ai.workers.util.BuildingProgressStage;
-import me.sshcrack.mc_talking.ConversationManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
@@ -249,7 +249,7 @@ public final class BuildWatch {
         }
         if (includeTalking) {
             try {
-                if (ConversationManager.isCitizenBusy(entity)) {
+                if (Talk.isBusy(entity)) {
                     return "standing in a conversation instead of working";
                 }
             } catch (Throwable ignored) {

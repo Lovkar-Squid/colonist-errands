@@ -8,22 +8,20 @@ import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import com.minecolonies.api.entity.citizen.citizenhandlers.ICitizenHappinessHandler;
 import com.minecolonies.api.entity.citizen.happiness.IHappinessModifier;
 import me.lovkar.errands.ColonistErrands;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import me.lovkar.errands.RankGuard;
+import me.lovkar.errands.tc.ErrandQuery;
+import net.minecraft.server.level.ServerPlayer;
 
-public class CitizenReportAction extends PlayerFunctionAction {
+public class CitizenReportAction extends ErrandQuery {
 
     public CitizenReportAction() {
         super("citizen_report",
                 "Get your own real status numbers to report honestly to the player: happiness (0-10), what exactly "
                         + "makes you unhappy or happy, health, job and home. Use when the player asks how you are doing, "
-                        + "what you need, or for a status report. Summarize the returned data naturally in your own words.");
+                        + "what you need, or for a status report. Summarize the returned data naturally in your own words.", RankGuard.GROUP_CHAT);
     }
-
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
         JsonObject result = new JsonObject();
         ICitizenData data = citizen.getCitizenData();
         if (data == null) {

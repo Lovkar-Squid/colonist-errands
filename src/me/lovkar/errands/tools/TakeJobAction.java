@@ -11,16 +11,13 @@ import me.lovkar.errands.ColonistErrands;
 import me.lovkar.errands.ErrandBuildings;
 import me.lovkar.errands.ErrandManager;
 import me.lovkar.errands.Texts;
-import me.sshcrack.gemini_live_lib.gson.properties.ObjectProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.PrimitiveProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.Property;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import me.lovkar.errands.RankGuard;
+import me.lovkar.errands.tc.ErrandCommand;
+import net.minecraft.server.level.ServerPlayer;
 
 import java.util.HashMap;
 
-public class TakeJobAction extends PlayerFunctionAction {
+public class TakeJobAction extends ErrandCommand {
 
     public TakeJobAction() {
         super("take_job",
@@ -32,14 +29,10 @@ public class TakeJobAction extends PlayerFunctionAction {
                         + "smelter, researcher, healer, undertaker, planter, quarrier...), building types and custom "
                         + "building names as well. "
                         + "On success you are hired on the spot and walk to your new workplace.",
-                (Property) new ObjectProperty(new HashMap<String, Property>() {{
-                    put("building", new PrimitiveProperty(PrimitiveProperty.Type.STRING, true));
-                }}));
+                params("building", string(true)), RankGuard.GROUP_JOBS);
     }
-
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
         JsonObject result = new JsonObject();
         ICitizenData data = citizen.getCitizenData();
         if (data == null) {

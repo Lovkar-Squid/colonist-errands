@@ -5,17 +5,14 @@ import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import me.lovkar.errands.PromiseStore;
-import me.sshcrack.gemini_live_lib.gson.properties.ObjectProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.PrimitiveProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.Property;
-import me.sshcrack.mc_talking.duck.CitizenDataMemoryExtended;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import me.lovkar.errands.tc.Talk;
+import me.lovkar.errands.RankGuard;
+import me.lovkar.errands.tc.ErrandCommand;
+import net.minecraft.server.level.ServerPlayer;
 
 import java.util.HashMap;
 
-public class MakePromiseAction extends PlayerFunctionAction {
+public class MakePromiseAction extends ErrandCommand {
 
     public MakePromiseAction() {
         super("make_promise",
@@ -28,17 +25,11 @@ public class MakePromiseAction extends PlayerFunctionAction {
                         + "Set 'about' to what the promise addresses: housing (a house for you), food, health "
                         + "(healing/hospital), work (a job for you) or general - while that promise is open and not "
                         + "overdue you PATIENTLY stop pestering the player about that problem.",
-                (Property) new ObjectProperty(new HashMap<String, Property>() {{
-                    put("promise", new PrimitiveProperty(PrimitiveProperty.Type.STRING, true));
-                    put("due_in_days", new PrimitiveProperty(PrimitiveProperty.Type.INTEGER, false));
-                    put("about", new me.sshcrack.gemini_live_lib.gson.properties.EnumProperty(
-                            java.util.List.of("housing", "food", "health", "work", "general"), false));
-                }}));
+                params("promise", string(true), "due_in_days", integer(false),
+                        "about", enumOf(java.util.List.of("housing", "food", "health", "work", "general"), false)), RankGuard.GROUP_CHAT);
     }
-
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
         JsonObject result = new JsonObject();
         ICitizenData data = citizen.getCitizenData();
         if (data == null || parameters == null || !parameters.has("promise")) {
@@ -67,7 +58,7 @@ public class MakePromiseAction extends PlayerFunctionAction {
         } catch (Throwable ignored) {
         }
         // Multiplayer: remember WHO promised (Lovkar plays with his girlfriend and sister).
-        String account = me.lovkar.errands.PlayerIdentityBlock.conversingPlayerName(citizen);
+        String account = player.getGameProfile().getName();
         String who = account == null ? "The player" : me.lovkar.errands.AliasStore.display(account);
         String err = PromiseStore.add(data.getName(), text, dueInDays, about, account);
         if (err != null) {
@@ -76,8 +67,7 @@ public class MakePromiseAction extends PlayerFunctionAction {
             return result;
         }
         try {
-            ((CitizenDataMemoryExtended) data).mc_talking$getOrInitializeMemory()
-                    .addEvent(who + " promised you: \"" + text + "\""
+            Talk.remember(data, who + " promised you: \"" + text + "\""
                             + (dueInDays > 0 ? " (within " + dueInDays + " days)" : "")
                             + ". You wrote it down - it is " + who + "'s promise, nobody else's.");
         } catch (Throwable ignored) {
