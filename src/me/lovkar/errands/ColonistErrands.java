@@ -152,6 +152,11 @@ public class ColonistErrands {
     }
 
     @SubscribeEvent
+    public void onRegisterCommands(net.neoforged.neoforge.event.RegisterCommandsEvent event) {
+        ErrandsCommands.register(event);
+    }
+
+    @SubscribeEvent
     public void onServerTick(ServerTickEvent.Post event) {
         SlotGuard.resetForTick();
         ErrandManager.tick(event.getServer());

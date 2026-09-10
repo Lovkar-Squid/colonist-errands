@@ -141,6 +141,12 @@ To silence MineColonies' own canned citizen lines (the "is there a problem" / "r
 while keeping the AI voices, set `enablecitizenvoices = false` in
 `config/minecolonies-client.toml`.
 
+## Commands
+
+| Command | Who | What |
+|---|---|---|
+| `/errands reloadtalking` | operators | re-reads Talking Colonists' `config/yacl-mc_talking.json5` without a restart - change the Gemini API key on a running server, and every conversation started from then on uses it (running ones keep their connection). Says whether a key is set and whether it changed, never the key itself. |
+
 ## Building from source
 
 See [BUILDING.md](BUILDING.md). Short version: drop the dependency mod jars into `libs/`, then

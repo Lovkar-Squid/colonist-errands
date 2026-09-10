@@ -17,6 +17,11 @@ had never heard of". They now know their work as well as a Voyager knows the End
   the latest entry in the sky book) and one about the Photo Booth, alongside the Voyager news.
 - Both jobs are **CHATTY** for citizen-to-citizen chats: the astronomer is idle all day and the
   studio is a social place.
+- **`/errands reloadtalking`** (operators). Talking Colonists reads `config/yacl-mc_talking.json5`
+  once, at startup, so a changed Gemini API key used to mean a server restart. This re-reads the
+  file in place: conversations started after it use the new key, ones already running keep their
+  connection. It reports whether a key is set and whether it changed - never the key itself - and
+  leaves the old settings in effect if the file does not parse.
 - Everything comes from Voyager itself (its status lines and `describeForChat()`, read by
   reflection, Voyager 0.3.0-alpha.20 or newer); with an older Voyager the two are simply
   colonists with a job, as before, and without Voyager nothing changes.
