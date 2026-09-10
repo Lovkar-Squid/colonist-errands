@@ -9,24 +9,19 @@ import com.minecolonies.core.colony.buildings.modules.settings.GuardTaskSetting;
 import me.lovkar.errands.ColonistErrands;
 import me.lovkar.errands.ErrandManager;
 import me.lovkar.errands.Texts;
-import me.sshcrack.gemini_live_lib.gson.properties.EnumProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.ObjectProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.Property;
-import me.sshcrack.mc_talking.ConversationManager;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
+import me.lovkar.errands.RankGuard;
+import me.lovkar.errands.tc.ErrandCommand;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.levelgen.Heightmap;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
 
-public class DefendHereAction extends PlayerFunctionAction {
+public class DefendHereAction extends ErrandCommand {
 
     public DefendHereAction() {
         super("defend_here",
@@ -36,21 +31,17 @@ public class DefendHereAction extends PlayerFunctionAction {
                         + "from the colony center. Cardinal AND diagonal borders are single directions: 'south-west border' "
                         + "is ONE call with direction='southwest' (never two calls). direction='raid': the line forms "
                         + "facing the direction the CURRENT raid is coming from - use when the player says 'toward the "
-                        + "raid' / 'where the raid is coming from'. Ends with the dismiss tool ('stand down') or "
+                        + "raid' / 'where the raid is coming from'. Ends with the {dismiss} tool ('stand down') or "
                         + "automatically after 30 minutes.",
-                (Property) new ObjectProperty(new HashMap<String, Property>() {{
-                    put("direction", new EnumProperty(List.of("here", "north", "south", "east", "west",
-                            "northeast", "northwest", "southeast", "southwest", "raid"), false));
-                }}));
+                params("direction", enumOf(List.of("here", "north", "south", "east", "west",
+                            "northeast", "northwest", "southeast", "southwest", "raid"), false)), RankGuard.GROUP_MILITARY);
     }
-
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
         JsonObject result = new JsonObject();
-        UUID playerId = ConversationManager.getPlayerForEntity(citizen.getUUID());
+        UUID playerId = player.getUUID();
         MinecraftServer server = citizen.getServer();
-        ServerPlayer player = (playerId == null || server == null) ? null : server.getPlayerList().getPlayer(playerId);
+        
         if (player == null) {
             result.addProperty("success", false);
             result.addProperty("error", "No player conversation is active.");
@@ -182,7 +173,7 @@ public class DefendHereAction extends PlayerFunctionAction {
                 + (skippedWet > 0 ? " Every post on that line lands in water - pick a spot further inland." : ""))
                 : placed + " guard tower(s) switched to Guard mode along the defensive line at " + where + " ("
                         + anchor.toShortString() + "). Guards are MARCHING to their posts - give them a couple of "
-                        + "minutes - and will hold the line until the player says stand down / dismiss. "
+                        + "minutes - and will hold the line until the player says stand down / dismiss ({dismiss} tool). "
                         + wetNote
                         + " Confirm the order briefly like a soldier and tell them where the line is forming." + Texts.GOODBYE);
         return result;

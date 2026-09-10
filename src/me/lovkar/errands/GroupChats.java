@@ -1,49 +1,39 @@
 package me.lovkar.errands;
 
-import com.minecolonies.api.colony.ICitizenData;
-import com.minecolonies.api.colony.IColony;
-import com.minecolonies.api.colony.IColonyManager;
-import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
-import me.sshcrack.mc_talking.ConversationManager;
-import me.sshcrack.mc_talking.conversations.CitizenConversation;
-import me.sshcrack.mc_talking.duck.CitizenDataMemoryExtended;
-import net.minecraft.server.MinecraftServer;
-
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import com.minecolonies.api.colony.ICitizenData;
+import com.minecolonies.api.colony.IColony;
+import com.minecolonies.api.colony.IColonyManager;
+import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
+import me.lovkar.errands.tc.PairChats;
+import me.lovkar.errands.tc.Talk;
+import me.sshcrack.mc_talking.api.conversation.AutonomousDiscussionHandle;
+import me.sshcrack.mc_talking.api.conversation.AutonomousDiscussionPolicy;
+import me.sshcrack.mc_talking.api.conversation.CitizenConversationService;
+import me.sshcrack.mc_talking.api.conversation.ControlledConversationOptions;
+import me.sshcrack.mc_talking.api.conversation.ControlledConversationSession;
+import net.minecraft.server.MinecraftServer;
+
 /**
  * Lovkar's question: can more than two of them talk at once?
  * <p>
- * Not in one voice, and the reason is worth writing down so nobody tries again.
- * mc_talking has two ways of running a citizen-to-citizen conversation, and both
- * are built for exactly two people:
- * <ul>
- *   <li><b>FLASH_TTS</b> renders the dialogue with Gemini's multi-speaker TTS,
- *       which accepts at most <b>two</b> speaker voices. A third name in the
- *       transcript has no voice to be read in.</li>
- *   <li><b>LIVE_WEBSOCKETS</b> wires two live sessions together as peers - each
- *       one's transcript is fed to the other, and one holds its audio while the
- *       other speaks. The wiring is one-to-one; there is no third socket.</li>
- * </ul>
- * So a huddle is built the way people actually stand in one: three of them
- * together, and the conversation goes round the circle - A with B, then B turns to
- * C, then C rounds it off with A. Each leg is a real two-way dialogue, and because
- * mc_talking writes each pair a memory of what they just discussed, the next leg
- * carries on from the last rather than starting over.
+ * With Talking Colonists 2.0, yes. Errands 2.x could only fake it - mc_talking's two ways of
+ * running a citizen conversation were both built for exactly two people, so a huddle went round
+ * the circle as three separate two-way chats. 2.0 has <em>controlled sessions</em>: one
+ * conversation with any number of participants, one speaker at a time, a shared transcript
+ * everybody's next line is grounded in, and an automatic floor (round-robin, nobody speaks twice
+ * in a row, capped in turns and minutes) when the caller delegates it. That is a huddle.
  * <p>
- * Two mc_talking rules have to be worked around deliberately: a citizen gets a
- * cooldown ({@code citizenCooldownSeconds}, two minutes by default) the moment a
- * session ends, which would stop the middle person turning to the next neighbour -
- * so the cooldown is lifted for the pair about to speak, and for them only. And
- * each leg needs two of the concurrent agent slots, so a leg that cannot get them
- * is skipped rather than allowed to evict somebody else's conversation.
- * <p>
- * A round is three API conversations instead of one, so it is rare by design: one
- * huddle every quarter of an hour at most, the same three people at most every
- * three quarters, and only where a player is close enough to hear it.
+ * Errands still owns everything around the words: who stands together (three citizens with
+ * nothing better to do, within a few blocks, a player close enough to hear), the memory that
+ * gives the chat its footing, keeping the three in place facing each other while it runs, and
+ * calling it off when one walks away or the player joins in. It is rare by design: one huddle
+ * every quarter of an hour at most, the same three people at most every three quarters.
  */
 public final class GroupChats {
 
@@ -52,25 +42,20 @@ public final class GroupChats {
 
     /** How close the three have to be standing to count as one group. */
     private static final double HUDDLE_DIST_SQR = 7.0 * 7.0;
-    /** ...and how far the pair may drift before the round is called off. */
+    /** ...and how far one may drift before the round is called off. */
     private static final double SPLIT_DIST_SQR = 14.0 * 14.0;
-    /** No point spending three conversations where nobody can hear them. */
+    /** No point spending a conversation where nobody can hear it. */
     private static final double PLAYER_RANGE = 26.0;
 
     private static final long GLOBAL_COOLDOWN_MS = 15 * 60_000L;
     private static final long TRIO_COOLDOWN_MS = 45 * 60_000L;
 
-    /**
-     * Each leg is kept short - the point is that it goes round, not that it lingers.
-     * Server ticks, not the wall clock: a paused game must not count against them.
-     */
-    private static final int LEG_WRAP_UP_TICKS = 75 * 20;
-    private static final int LEG_END_TICKS = 105 * 20;
-    private static final int LEG_HARD_TICKS = 150 * 20;
-    /** A beat between legs, long enough for the memory of the last one to be written. */
-    private static final int BETWEEN_LEGS_TICKS = 7 * 20;
-    /** However badly it goes, a round is over after this. */
-    private static final int ROUND_MAX_TICKS = 12 * 60 * 20;
+    /** Six turns - two each - and three minutes of scheduling: a huddle, not a council. */
+    private static final int TURNS = 6;
+    private static final Duration DURATION = Duration.ofMinutes(3);
+    private static final int RESPONSE_TOKENS = 256;
+    /** However badly it goes, a round is over after this (server ticks: a paused game does not count). */
+    private static final int ROUND_MAX_TICKS = 8 * 60 * 20;
     /** Looking for a group is cheap; the cooldowns are what keep rounds rare. */
     private static final int LOOK_EVERY_TICKS = 30 * 20;
     /** How often, at most, to say in the log why no huddle started. */
@@ -85,15 +70,11 @@ public final class GroupChats {
     private static final class Round {
         final MinecraftServer server;
         final int colonyId;
-        final List<AbstractEntityCitizen> circle; // exactly three, in order
+        final List<AbstractEntityCitizen> circle; // exactly three
         final int startedTick;
-        volatile int leg = 0;        // 0 -> (0,1), 1 -> (1,2), 2 -> (2,0)
-        int legStartedTick = 0;
-        /** Set on the server thread once a finished leg has been noticed; -1 = not yet. */
-        int legEndedTick = -1;
-        volatile CitizenConversation current = null;
-        boolean wrapUpAsked = false;
-        boolean endRequested = false;
+        ControlledConversationSession session;
+        AutonomousDiscussionHandle discussion;
+        volatile boolean over;
 
         Round(MinecraftServer server, int colonyId, List<AbstractEntityCitizen> circle) {
             this.server = server;
@@ -101,24 +82,12 @@ public final class GroupChats {
             this.circle = circle;
             this.startedTick = server.getTickCount();
         }
-
-        AbstractEntityCitizen speaker() {
-            return circle.get(leg % 3);
-        }
-
-        AbstractEntityCitizen listener() {
-            return circle.get((leg + 1) % 3);
-        }
-
-        AbstractEntityCitizen bystander() {
-            return circle.get((leg + 2) % 3);
-        }
     }
 
     public static void tick(MinecraftServer server) {
         Round cur = round;
         if (cur != null) {
-            if (server.getTickCount() % 20 == 0) {
+            if (server.getTickCount() % 10 == 0) {
                 advance(cur);
             }
             return;
@@ -161,167 +130,98 @@ public final class GroupChats {
                     endRound(cur, "one of them is gone");
                     return;
                 }
-            }
-            CitizenConversation running = cur.current;
-            if (running == null) {
-                // Between legs. ENDED means the last part is GENERATED, not heard - its
-                // audio can still be playing for half a minute, during which the two who
-                // spoke are kept busy by the chaperone. Wait for that, then a short beat.
-                if (anyBusy(cur)) {
-                    cur.legEndedTick = -1;
+                if (Talk.isTalkingToPlayer(c)) {
+                    endRound(cur, "the player joined in - they come first");
                     return;
                 }
-                if (cur.legEndedTick < 0) {
-                    cur.legEndedTick = now;
-                } else if (now - cur.legEndedTick >= BETWEEN_LEGS_TICKS) {
-                    startLeg(cur);
+            }
+            AutonomousDiscussionHandle discussion = cur.discussion;
+            if (discussion != null) {
+                AutonomousDiscussionHandle.State state = discussion.state();
+                if (state == AutonomousDiscussionHandle.State.COMPLETED) {
+                    endRound(cur, "the three of them had all had their say");
+                    return;
                 }
-                return;
-            }
-
-            // A leg is running: keep them together, and wind it up in good time.
-            AbstractEntityCitizen a = cur.speaker();
-            AbstractEntityCitizen b = cur.listener();
-            if (a.distanceToSqr(b) > SPLIT_DIST_SQR) {
-                endRound(cur, "they drifted apart");
-                return;
-            }
-            int age = now - cur.legStartedTick;
-            if (!cur.wrapUpAsked && age > LEG_WRAP_UP_TICKS) {
-                cur.wrapUpAsked = true;
-                ChatWindDown.askToWrapUp(a, b, "Round this part of the conversation off now - one last thought "
-                        + "and hand it over. " + cur.bystander().getCitizenData().getName()
-                        + " is stood right there waiting to pick it up.");
-            }
-            if (!cur.endRequested && age > LEG_END_TICKS) {
-                cur.endRequested = true;
-                if (!ChatWindDown.endAfterThisLine(a, b)) {
-                    return; // Flash/TTS: one rendered clip, it ends when it ends
+                if (state == AutonomousDiscussionHandle.State.PAUSED) {
+                    // The core pauses rather than retries: a player barged in, or the slots ran out.
+                    endRound(cur, "the conversation was interrupted ("
+                            + discussion.pauseReason().map(Enum::name).orElse("paused") + ")");
+                    return;
                 }
             }
-            if (age > LEG_HARD_TICKS) {
-                try {
-                    running.abort();
-                } catch (Throwable ignored) {
+            // Keep them together: they stand in a triangle, each looking at the next.
+            for (int i = 0; i < 3; i++) {
+                AbstractEntityCitizen a = cur.circle.get(i);
+                AbstractEntityCitizen b = cur.circle.get((i + 1) % 3);
+                if (a.distanceToSqr(b) > SPLIT_DIST_SQR) {
+                    endRound(cur, "they drifted apart");
+                    return;
                 }
-                legFinished(cur, cur.leg, running);
+                PairChats.freeze(a, b);
             }
         } catch (Throwable t) {
             endRound(cur, "something went wrong");
         }
     }
 
-    private static boolean anyBusy(Round cur) {
-        for (AbstractEntityCitizen c : cur.circle) {
-            try {
-                if (ConversationManager.isCitizenBusy(c)) {
-                    return true;
-                }
-            } catch (Throwable ignored) {
-            }
-        }
-        return false;
-    }
-
-    private static void startLeg(Round cur) {
-        // legFinished() runs on mc_talking's own thread, so the round can be over
-        // between the tick deciding to start a leg and this line.
-        if (round != cur || cur.leg >= 3) {
-            return;
-        }
-        AbstractEntityCitizen a = cur.speaker();
-        AbstractEntityCitizen b = cur.listener();
-        AbstractEntityCitizen c = cur.bystander();
+    private static void startRound(Round cur) {
+        AbstractEntityCitizen a = cur.circle.get(0);
+        AbstractEntityCitizen b = cur.circle.get(1);
+        AbstractEntityCitizen c = cur.circle.get(2);
         String an = a.getCitizenData().getName();
         String bn = b.getCitizenData().getName();
         String cn = c.getCitizenData().getName();
 
-        // The pair about to speak have just finished a session with someone else in
-        // this same circle, so mc_talking's cooldown would block them. Lift it for
-        // these two only - everybody else in the colony keeps theirs.
-        try {
-            ConversationManager.forceRemoveCooldown(a);
-            ConversationManager.forceRemoveCooldown(b);
-        } catch (Throwable ignored) {
-        }
-
-        if (!ConversationManager.canCitizenSpeak(a) || !ConversationManager.canCitizenSpeak(b)
-                || ConversationManager.isCitizenBusy(a) || ConversationManager.isCitizenBusy(b)) {
-            endRound(cur, bn + " could not pick the conversation up");
-            return;
-        }
-        if (!ConversationManager.hasLowPriorityCapacity(2)) {
-            endRound(cur, "no free slots for the next part");
-            return;
-        }
-
-        String whoIsThere = " The three of you - you, " + bn + " and " + cn + " - are stood together in a group.";
-        if (cur.leg == 0) {
-            memory(a, "You have fallen into conversation with " + bn + "." + whoIsThere
-                    + " Start it off: something on your mind, the colony, the work, the day. Keep it short - "
-                    + cn + " will want a word too.");
-            memory(b, "You have fallen into conversation with " + an + "." + whoIsThere
-                    + " Talk with them for a moment; you will turn to " + cn + " straight after.");
-        } else {
-            memory(a, "You have just been talking with " + cn + ", and now " + bn
-                    + " picks it up with you." + whoIsThere
-                    + " Carry on from what was just said rather than starting a new subject.");
-            memory(b, "You have been listening to " + an + " and " + cn
-                    + ", and now it is your turn with " + an + "." + whoIsThere
-                    + " Pick up what they were just saying and put your own view on it.");
-        }
+        String together = " The three of you are stood together in a group, talking. Keep each thing you say "
+                + "short - the others want a word too - and answer what was just said rather than starting "
+                + "a new subject each time.";
+        memory(a, "You have fallen into conversation with " + bn + " and " + cn + "." + together
+                + " Start it off: something on your mind, the colony, the work, the day.");
+        memory(b, "You have fallen into conversation with " + an + " and " + cn + "." + together);
+        memory(c, "You have fallen into conversation with " + an + " and " + bn + "." + together);
 
         try {
-            C2cAudioFollower.expectStationary(a, b);
-            CitizenConversation conversation = new CitizenConversation(cur.server, List.of(a, b));
-            final int legIndex = cur.leg;
-            cur.current = conversation;
-            cur.legStartedTick = cur.server.getTickCount();
-            cur.legEndedTick = -1;
-            cur.wrapUpAsked = false;
-            cur.endRequested = false;
-            conversation.setOnStateChanged(state -> {
-                if (state == CitizenConversation.ConversationState.ENDED) {
-                    legFinished(cur, legIndex, conversation);
+            cur.session = CitizenConversationService.createControlledSession(cur.server, cur.circle,
+                    "A chat between neighbours stood together: something on your mind, the colony, the work, the day. "
+                            + "Short turns; answer each other.",
+                    ControlledConversationOptions.noAddonTools());
+            cur.discussion = cur.session.delegateAutonomousDiscussion(
+                    new AutonomousDiscussionPolicy(TURNS, DURATION, RESPONSE_TOKENS));
+            cur.discussion.completion().thenAccept(reason -> {
+                if (reason == AutonomousDiscussionHandle.CompletionReason.STOPPED) {
+                    return; // we stopped it ourselves - endRound already said why
                 }
+                endRound(cur, "the conversation ran its course (" + reason + ")");
             });
-            conversation.performConversation();
-            ColonistErrands.LOGGER.info("[Group] Part {} of 3 - {} and {} talk, {} is listening in",
-                    cur.leg + 1, an, bn, cn);
+            ColonistErrands.LOGGER.info("[Group] {}, {} and {} are stood together - a three-way it is ({} turns at most)",
+                    an, bn, cn, TURNS);
         } catch (Throwable t) {
-            ColonistErrands.LOGGER.warn("[Group] Could not start part {} of the huddle", cur.leg + 1, t);
+            ColonistErrands.LOGGER.warn("[Group] Could not start the huddle", t);
             endRound(cur, "the conversation would not start");
-        }
-    }
-
-    /** Called from mc_talking's own state callback - may fire twice, and off-thread. */
-    private static void legFinished(Round cur, int legIndex, CitizenConversation which) {
-        synchronized (GroupChats.class) {
-            if (round != cur || cur.leg != legIndex || cur.current != which) {
-                return; // already moved on
-            }
-            cur.current = null;
-            cur.leg = legIndex + 1;
-        }
-        if (cur.leg >= 3) {
-            endRound(cur, "the three of them had all had their say");
         }
     }
 
     private static void endRound(Round cur, String why) {
         synchronized (GroupChats.class) {
-            if (round != cur) {
+            if (cur.over) {
                 return;
             }
-            round = null;
-        }
-        CitizenConversation running = cur.current;
-        cur.current = null;
-        if (running != null) {
-            try {
-                running.abort();
-            } catch (Throwable ignored) {
+            cur.over = true;
+            if (round == cur) {
+                round = null;
             }
+        }
+        try {
+            if (cur.discussion != null) {
+                cur.discussion.stop();
+            }
+        } catch (Throwable ignored) {
+        }
+        try {
+            if (cur.session != null) {
+                cur.session.end(ControlledConversationSession.EndReason.COMPLETED);
+            }
+        } catch (Throwable ignored) {
         }
         ColonistErrands.LOGGER.info("[Group] Huddle over - {}", why);
     }
@@ -359,7 +259,7 @@ public final class GroupChats {
                         continue;
                     }
                     trios++;
-                    if (!ConversationManager.hasPlayerNearby(a, server, PLAYER_RANGE)) {
+                    if (!Talk.hasPlayerNearby(a, PLAYER_RANGE)) {
                         noPlayer++;
                         continue; // nobody around to hear it
                     }
@@ -369,17 +269,15 @@ public final class GroupChats {
                         onCooldown++;
                         continue;
                     }
-                    if (!ConversationManager.hasLowPriorityCapacity(2)) {
-                        whyNot("no free agent slots - somebody else is talking");
+                    if (!Talk.hasAmbientCapacity(1)) {
+                        whyNot("no free agent slot - somebody else is talking");
                         return false;
                     }
                     TRIO_LAST.put(key, System.currentTimeMillis());
                     lastRoundMs = System.currentTimeMillis();
                     Round started = new Round(server, colony.getID(), List.of(a, b, c));
                     round = started;
-                    ColonistErrands.LOGGER.info("[Group] {}, {} and {} are stood together - a three-way it is",
-                            a.getCitizenData().getName(), b.getCitizenData().getName(), c.getCitizenData().getName());
-                    startLeg(started);
+                    startRound(started);
                     return true;
                 }
             }
@@ -402,11 +300,11 @@ public final class GroupChats {
     }
 
     /**
-     * Awake, off duty, not on an errand and not already talking. mc_talking's
-     * per-citizen cooldown is deliberately NOT a bar here: a huddle is rare by its
-     * own cooldowns, and {@link #startLeg} lifts the citizen cooldown for the pair
-     * anyway - insisting on it for the first pair only meant that near a player,
-     * where mumbles and greetings keep everybody on cooldown, no huddle ever began.
+     * Awake, off duty, not on an errand and not already talking. The core's per-citizen
+     * cooldown is deliberately NOT a bar here: a huddle is rare by its own cooldowns, and
+     * controlled turns are not subject to the ambient cooldown anyway - insisting on it
+     * meant that near a player, where mumbles and greetings keep everybody on cooldown,
+     * no huddle ever began.
      */
     private static AbstractEntityCitizen freeToTalk(ICitizenData cd) {
         try {
@@ -417,8 +315,7 @@ public final class GroupChats {
             if (cd.getJob() instanceof com.minecolonies.core.colony.jobs.AbstractJobGuard) {
                 return null; // on duty
             }
-            if (ErrandManager.hasErrand(e) || ConversationManager.isCitizenBusy(e)
-                    || !C2cAudioFollower.isFreeToChat(e)) {
+            if (ErrandManager.hasErrand(e) || Talk.isBusy(e) || !PairChats.isFreeToChat(e)) {
                 return null;
             }
             return e;
@@ -434,13 +331,14 @@ public final class GroupChats {
     }
 
     private static void memory(AbstractEntityCitizen c, String event) {
-        try {
-            ((CitizenDataMemoryExtended) c.getCitizenData()).mc_talking$getOrInitializeMemory().addEvent(event);
-        } catch (Throwable ignored) {
-        }
+        Talk.remember(c, event);
     }
 
     public static void clearAll() {
+        Round cur = round;
+        if (cur != null) {
+            endRound(cur, "the server is stopping");
+        }
         TRIO_LAST.clear();
         lastRoundMs = 0;
         round = null;

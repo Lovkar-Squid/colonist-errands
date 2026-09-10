@@ -1,14 +1,13 @@
 package me.lovkar.errands;
 
+import me.lovkar.errands.tc.PairChats;
+import me.lovkar.errands.tc.Talk;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.ICivilianData;
 import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.IColonyManager;
 import com.minecolonies.api.colony.buildings.IBuilding;
 import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
-import me.sshcrack.mc_talking.ConversationManager;
-import me.sshcrack.mc_talking.conversations.CitizenConversation;
-import me.sshcrack.mc_talking.duck.CitizenDataMemoryExtended;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 
@@ -63,16 +62,12 @@ public final class ShopChats {
     /**
      * How long a counter chat is meant to last, in server ticks - Lovkar paused the
      * game with a customer at the counter, and a wall clock would have counted the
-     * pause as the pair refusing to stop. This is not a guillotine any more:
-     * a minute before it, the pair are asked to bring the conversation to a close
-     * themselves, and only if they are still going well past it do we cut the
-     * audio. See {@link ChatWindDown} for why that is only possible for live
-     * conversations.
+     * pause as the pair refusing to stop. At three minutes Talking Colonists is asked
+     * to end the chat after the current sentence (its graceful end); only if they are
+     * still going well past that is it cut.
      */
     private static final int MAX_CHAT_TICKS = 3 * 60 * 20;
-    /** ...so at two minutes they are told to start finishing. */
-    private static final int WRAP_UP_TICKS = MAX_CHAT_TICKS - 60 * 20;
-    /** ...at three, the current sentence is the last one. */
+    /** ...and at this point it is cut regardless. */
     private static final int HARD_STOP_TICKS = MAX_CHAT_TICKS + 45 * 20;
     /**
      * A customer will not wait for a whole goodbye - one line to excuse themselves.
@@ -95,20 +90,18 @@ public final class ShopChats {
     private static volatile Active active = null;
 
     private static final class Active {
-        final CitizenConversation conversation;
+        final PairChats.Chat conversation;
         final IBuilding market;
         final int colonyId;
         final AbstractEntityCitizen a;
         final AbstractEntityCitizen b;
         final int startedTick;
-        /** Set once we have told them to start wrapping up. */
-        volatile boolean wrapUpAsked = false;
         /** Set once mc_talking has been told to close after the current sentence. */
         volatile boolean endRequested = false;
         /** The tick a customer first appeared on - negative while the shop is still empty. */
         volatile int customerSinceTick = -1;
 
-        Active(CitizenConversation conversation, IBuilding market, int colonyId,
+        Active(PairChats.Chat conversation, IBuilding market, int colonyId,
                AbstractEntityCitizen a, AbstractEntityCitizen b, int startedTick) {
             this.conversation = conversation;
             this.market = market;
@@ -178,10 +171,9 @@ public final class ShopChats {
             if (customerAround(colony, cur.market)) {
                 if (cur.customerSinceTick < 0) {
                     cur.customerSinceTick = now;
-                    boolean asked = ChatWindDown.askToWrapUp(cur.a, cur.b,
-                            "A customer has just walked into the shop. Say one short line to excuse "
-                                    + "yourself - politely, in your own words - and end the conversation now.");
-                    ChatWindDown.endAfterThisLine(cur.a, cur.b);
+                    // Talking Colonists 2.0 has no way to slip a line into a running pair chat,
+                    // but it can end one after the current sentence - so they break off cleanly.
+                    boolean asked = PairChats.end(cur.conversation);
                     String note = asked
                             ? "A customer walked in while you were talking. You excused yourself and went back to "
                                     + "the counter. Business first."
@@ -205,22 +197,15 @@ public final class ShopChats {
             cur.customerSinceTick = -1; // the customer left again before we cut in
 
             // --- the clock ----------------------------------------------------
-            if (!cur.wrapUpAsked && age > WRAP_UP_TICKS) {
-                cur.wrapUpAsked = true;
-                if (ChatWindDown.askToWrapUp(cur.a, cur.b,
-                        "You have been talking for a while and there is a shop to mind. Bring the conversation "
-                                + "to a natural close now: finish the thought you are on, say your goodbyes, and "
-                                + "stop. Do not start a new subject.")) {
-                    ColonistErrands.LOGGER.info("[Shop] {} and {} have been at it a while - asked them to wrap up",
-                            cur.a.getCitizenData().getName(), cur.b.getCitizenData().getName());
-                }
+            if (cur.conversation.isOver()) {
+                finished(cur);
+                return;
             }
             if (!cur.endRequested && age > MAX_CHAT_TICKS) {
                 cur.endRequested = true;
-                if (ChatWindDown.endAfterThisLine(cur.a, cur.b)) {
+                if (PairChats.end(cur.conversation)) {
                     ColonistErrands.LOGGER.info("[Shop] Counter chat closing after the current line");
                 } else {
-                    // Flash/TTS: a single rendered clip, so there is nothing to ask.
                     stop(cur, "it had gone on long enough");
                     return;
                 }
@@ -233,15 +218,12 @@ public final class ShopChats {
         }
     }
 
-    /** Cut the audio. The last resort - everything else goes through {@link ChatWindDown}. */
+    /** Cut it now. The last resort - the clock asks for a graceful end first. */
     private static void stop(Active cur, String why) {
         if (active == cur) {
             active = null;
         }
-        try {
-            cur.conversation.abort();
-        } catch (Throwable ignored) {
-        }
+        PairChats.cancel(cur.conversation, null);
         ColonistErrands.LOGGER.info("[Shop] Counter chat ended - {}", why);
     }
 
@@ -293,7 +275,7 @@ public final class ShopChats {
                         if (last != null && System.currentTimeMillis() - last < PAIR_COOLDOWN_MS) {
                             continue;
                         }
-                        if (!ConversationManager.hasLowPriorityCapacity(2)) {
+                        if (!Talk.hasAmbientCapacity(2)) {
                             return false; // do not evict somebody else's conversation for small talk
                         }
                         start(server, market, a, b, pairKey, own.contains(b));
@@ -352,10 +334,10 @@ public final class ShopChats {
                     if (e.blockPosition().distSqr(shop) > AT_SHOP_SQR) {
                         continue; // away from the shop - not a quiet moment at the counter
                     }
-                    if (ErrandManager.hasErrand(e) || ConversationManager.isCitizenBusy(e)) {
+                    if (ErrandManager.hasErrand(e) || Talk.isBusy(e)) {
                         continue;
                     }
-                    if (!ConversationManager.canCitizenSpeak(e)) {
+                    if (!Talk.canChat(e)) {
                         continue;
                     }
                     out.add(e);
@@ -388,8 +370,8 @@ public final class ShopChats {
                     if (e.blockPosition().distSqr(shop) > AT_SHOP_SQR) {
                         continue;
                     }
-                    if (ErrandManager.hasErrand(e) || ConversationManager.isCitizenBusy(e)
-                            || !ConversationManager.canCitizenSpeak(e)) {
+                    if (ErrandManager.hasErrand(e) || Talk.isBusy(e)
+                            || !Talk.canChat(e)) {
                         continue;
                     }
                     out.add(e);
@@ -432,20 +414,12 @@ public final class ShopChats {
         memory(b, "The shop is empty - no customer in and none on the way - and " + an
                 + whereB + " You stay where you are while you talk." + topic);
         try {
-            C2cAudioFollower.expectStationary(a, b);
-            CitizenConversation conversation = new CitizenConversation(server, List.of(a, b));
-            Active started = new Active(conversation, market, market.getColony().getID(), a, b,
-                    server.getTickCount());
-            active = started;
-            // Without this the shop would stay "busy" long after the two had finished,
-            // and the next chat could not begin until the clock cut a conversation
-            // that had been over for minutes.
-            conversation.setOnStateChanged(state -> {
-                if (state == CitizenConversation.ConversationState.ENDED) {
-                    finished(started);
-                }
-            });
-            conversation.performConversation();
+            // Two shopkeepers call across to each other from their counters - a stationary pair.
+            PairChats.Chat conversation = PairChats.start(server, a, b, true);
+            if (conversation == null) {
+                return;
+            }
+            active = new Active(conversation, market, market.getColony().getID(), a, b, server.getTickCount());
             ColonistErrands.LOGGER.info("[Shop] {} and {} chat behind the counter - no customers right now", an, bn);
         } catch (Throwable t) {
             active = null;
@@ -455,7 +429,7 @@ public final class ShopChats {
 
     private static void memory(AbstractEntityCitizen c, String event) {
         try {
-            ((CitizenDataMemoryExtended) c.getCitizenData()).mc_talking$getOrInitializeMemory().addEvent(event);
+            Talk.remember(c.getCitizenData(), event);
         } catch (Throwable ignored) {
         }
     }

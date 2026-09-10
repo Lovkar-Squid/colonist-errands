@@ -6,12 +6,12 @@ import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import me.lovkar.errands.ColonistErrands;
 import me.lovkar.errands.Fallen;
 import me.lovkar.errands.Texts;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import me.lovkar.errands.RankGuard;
+import me.lovkar.errands.tc.ErrandCommand;
+import net.minecraft.server.level.ServerPlayer;
 
 /** The colony's roll of honour: who died, how, and what they did first. */
-public class RememberFallenAction extends PlayerFunctionAction {
+public class RememberFallenAction extends ErrandCommand {
 
     public RememberFallenAction() {
         super("remember_fallen",
@@ -19,12 +19,10 @@ public class RememberFallenAction extends PlayerFunctionAction {
                         + "'tell me about the fallen', 'who did we lose?', 'do you remember him?'. Returns this "
                         + "colony's roll of honour: names, how each one died and what they had done, guards' kill "
                         + "records included. Tell it the way someone who knew them would - pick out a name or two "
-                        + "and say something real about them, do not read the whole list out.");
+                        + "and say something real about them, do not read the whole list out.", RankGuard.GROUP_CHAT);
     }
-
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
         JsonObject result = new JsonObject();
         try {
             result.addProperty("success", true);

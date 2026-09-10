@@ -1,3 +1,49 @@
+# Colonist Errands 3.0.0-alpha.1 — built on the Talking Colonists 2.0 addon API
+
+Talking Colonists 2.0 (in alpha) replaces its internals with a public addon API, and this is
+Colonist Errands rebuilt on it. **Requires Talking Colonists 2.0.0-alpha.2 or newer; it does not
+load on 1.7.x** (keep 2.2.0 for that). Everything a player can say still works the same way; what
+changed is underneath.
+
+- **Tools.** All 42 tools are registered through `AiToolRegistry` as commands and queries instead
+  of being pushed into a private map by reflection. The model now sees them as
+  `tc_7_errands_<name>` (Talking Colonists derives the function name from the addon id); every
+  description that points at another tool uses that name. The rank gate (which colony rank may
+  order what) is unchanged and travels with each tool; Talking Colonists validates every call
+  against the declared parameters before it runs, so an undeclared field can no longer slip through.
+- **Prompt.** The sixteen prompt blocks (nicknames, multiplayer awareness, promises, food and
+  supply checks, guard score and gear, the fallen, research, the real building site, beds, the
+  colony map, time of day, Voyager lore) reach the prompt as three labelled contributions -
+  instruction, observation, story - through `CitizenPromptService.registerContributor`, computed
+  on the server thread whichever thread asks. No mixin on the prompt any more.
+- **Busy, memory, conversations.** An errand holds a citizen with an activity lease
+  (`reserveActivity`, renewed while the errand runs, released when it ends - and taken away by the
+  core the moment a player addresses the citizen, which is what "the player comes first" means
+  now). Memories are written through `CitizenMemoryService`. Messengers and couriers start the
+  conversation with `startPlayerConversation`; `leave_conversation` asks for the core's graceful
+  end.
+- **Citizen chats.** Family, shop, crew and mourning chats are pair conversations from
+  `createPairConversation`; the chaperone still walks the pair together and turns them to face
+  each other (shopkeepers stay at their counters), but the audio, the busy state and the drain of
+  the last words are the core's business now.
+- **Huddles are real three-way conversations.** A group chat is a controlled session with the
+  three citizens and the floor delegated to Talking Colonists (round-robin, six turns, three
+  minutes) instead of three two-way chats in a row.
+- **Rules.** The job chat policy is a speech policy (vetoes the core's random citizen chats for
+  citizens who should be working), the patience about promised problems, medical care, solvable
+  hunger and deliveries underway is an urgency modifier, and the "greeting for any hour" rule is
+  a pregeneration prompt modifier.
+- **Gone, because the core does them now:** the slot guard, the session reaper, the audio gate
+  (doubled goodbyes), the stream drain, the voice blocklist, the greeting/urgent-contact
+  coordination. Ten of the twelve mixins are gone with them; the two left touch MineColonies only
+  (tavern hut, assistant hammer). `colonist_errands_blocked_voices.txt` is no longer read.
+- **Kept:** `/errands reloadtalking` (the config class is reached by reflection, since it is not
+  part of the API), every config file, promises, relations, guard careers, the fallen, and the
+  Voyager integration.
+- **Alpha, like the Talking Colonists it runs on.** Tested headless (every tool called through the
+  API, the lease, the prompt contributor from both threads, memory, a pair chat and a controlled
+  session); play testing on a dev instance comes next. Not for the played world yet.
+
 # Colonist Errands 2.2.0 — the astronomer and the photographer join the conversation
 
 Voyager 0.3 adds two professions - the **astronomer** at the Observatory and the **photographer**

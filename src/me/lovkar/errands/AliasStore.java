@@ -74,7 +74,7 @@ public final class AliasStore {
                 .append("\n- NEVER say the same sentence twice. If the connection was re-established or your context was ")
                 .append("restored mid-conversation, do NOT repeat anything you already said (no repeated greetings, ")
                 .append("answers or goodbyes) - continue naturally from where you left off, or stay silent and listen.")
-                .append("\n- One goodbye total: after you call leave_conversation, say NOTHING more - never repeat ")
+                .append("\n- One goodbye total: after you call " + me.lovkar.errands.tc.ToolNames.providerName("leave_conversation") + ", say NOTHING more - never repeat ")
                 .append("or rephrase a goodbye you already spoke.");
         if (!ALIASES.isEmpty()) {
             sb.append("\nPlayer name preferences:");

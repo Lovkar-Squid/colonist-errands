@@ -1,7 +1,7 @@
 package me.lovkar.errands;
 
+import me.lovkar.errands.tc.Talk;
 import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
-import me.sshcrack.mc_talking.duck.CitizenDataMemoryExtended;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
@@ -110,8 +110,7 @@ public final class WatchManager {
             }
             if (w.comeToMe && player != null) {
                 try {
-                    ((CitizenDataMemoryExtended) c.getCitizenData()).mc_talking$getOrInitializeMemory()
-                            .addEvent("I just found " + gained + "x " + w.label + " while working and I am on my way "
+                    Talk.remember(c.getCitizenData(), "I just found " + gained + "x " + w.label + " while working and I am on my way "
                                     + "to personally report this great news to " + player.getGameProfile().getName() + "!");
                 } catch (Throwable t) {
                     ColonistErrands.LOGGER.warn("[Watch] could not write memory event", t);

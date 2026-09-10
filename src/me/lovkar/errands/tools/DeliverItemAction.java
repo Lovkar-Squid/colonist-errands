@@ -9,37 +9,27 @@ import me.lovkar.errands.ErrandBuildings;
 import me.lovkar.errands.ErrandManager;
 import me.lovkar.errands.ItemFinder;
 import me.lovkar.errands.Texts;
-import me.sshcrack.gemini_live_lib.gson.properties.ObjectProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.PrimitiveProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.Property;
-import me.sshcrack.mc_talking.ConversationManager;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
+import me.lovkar.errands.RankGuard;
+import me.lovkar.errands.tc.ErrandCommand;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
 import java.util.UUID;
 
-public class DeliverItemAction extends PlayerFunctionAction {
+public class DeliverItemAction extends ErrandCommand {
 
     public DeliverItemAction() {
         super("deliver_item",
                 "COURIERS ONLY: carry items from the warehouse INTO another building's storage ('take 32 planks "
                         + "to the builder', 'deliver bread to the restaurant'). You pick the items up at the "
                         + "warehouse, walk to the target building and stock its racks. For bringing items to the "
-                        + "PLAYER use fetch_item instead. Pass the item and the building as the player named them "
+                        + "PLAYER use {fetch_item} instead. Pass the item and the building as the player named them "
                         + "(building type or custom name). Fails politely if you are not a courier.",
-                (Property) new ObjectProperty(new HashMap<String, Property>() {{
-                    put("item", new PrimitiveProperty(PrimitiveProperty.Type.STRING, true));
-                    put("count", new PrimitiveProperty(PrimitiveProperty.Type.INTEGER, false));
-                    put("building", new PrimitiveProperty(PrimitiveProperty.Type.STRING, true));
-                }}));
+                params("item", string(true), "count", integer(false), "building", string(true)), RankGuard.GROUP_ERRANDS);
     }
-
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
         JsonObject result = new JsonObject();
         ICitizenData data = citizen.getCitizenData();
         IBuilding wb = data == null ? null : data.getWorkBuilding();
@@ -54,7 +44,7 @@ public class DeliverItemAction extends PlayerFunctionAction {
             result.addProperty("error", "Missing 'item' or 'building'.");
             return result;
         }
-        UUID playerId = ConversationManager.getPlayerForEntity(citizen.getUUID());
+        UUID playerId = player.getUUID();
         if (playerId == null) {
             result.addProperty("success", false);
             result.addProperty("error", "No player conversation is active.");
@@ -125,7 +115,7 @@ public class DeliverItemAction extends PlayerFunctionAction {
         } catch (Throwable ignored) {
         }
         if (midDelivery) {
-            String playerName = me.lovkar.errands.PlayerIdentityBlock.conversingPlayerName(citizen);
+            String playerName = player.getGameProfile().getName();
             boolean queued = me.lovkar.errands.FetchQueue.add(colony, playerId,
                     playerName == null ? "the player" : playerName, item, count, dest, destName);
             if (!queued) {

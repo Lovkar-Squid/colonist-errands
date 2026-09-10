@@ -20,16 +20,7 @@ public final class PlayerIdentityBlock {
 
     /** Account name of the player this citizen is conversing with right now, or null. */
     public static String conversingPlayerName(com.minecolonies.api.entity.citizen.AbstractEntityCitizen citizen) {
-        try {
-            java.util.UUID pid = me.sshcrack.mc_talking.ConversationManager.getPlayerForEntity(citizen.getUUID());
-            if (pid == null || citizen.getServer() == null) {
-                return null;
-            }
-            net.minecraft.server.level.ServerPlayer sp = citizen.getServer().getPlayerList().getPlayer(pid);
-            return sp == null ? null : sp.getGameProfile().getName();
-        } catch (Throwable t) {
-            return null;
-        }
+        return me.lovkar.errands.tc.Talk.activePlayerName(citizen);
     }
 
     public static String build(CitizenPromptView view) {
@@ -40,7 +31,7 @@ public final class PlayerIdentityBlock {
                 .append("When recalling memories, keep each person's deeds separate: never thank, blame or remind ")
                 .append("one person for something another person did or promised.");
         try {
-            PlayerRelationView rel = view == null ? null : view.playerRelation();
+            PlayerRelationView rel = view == null || view.conversation() == null ? null : view.conversation().playerRelation();
             if (rel != null && rel.playerName() != null) {
                 String shown = AliasStore.display(rel.playerName());
                 sb.append("\n- Speaking with you now: ").append(shown);
@@ -66,8 +57,8 @@ public final class PlayerIdentityBlock {
                 // live tool gate, so the citizen explains rules instead of failing).
                 sb.append(RankGuard.promptSummary(tierFromRelation(rel)));
                 // Lovkar's idea #29: how this person usually treats THIS citizen.
-                if (view.name() != null) {
-                    sb.append(RelationStore.blockFor(view.name(), rel.playerName()));
+                if (view.identity() != null && view.identity().name() != null) {
+                    sb.append(RelationStore.blockFor(view.identity().name(), rel.playerName()));
                 }
             }
         } catch (Throwable ignored) {
@@ -81,7 +72,7 @@ public final class PlayerIdentityBlock {
         } catch (Throwable ignored) {
         }
         sb.append("\n- If someone is notably KIND or notably RUDE to you in conversation, quietly call the ")
-                .append("note_player_conduct tool (never mention doing so) - you remember how people treat you.");
+                .append(me.lovkar.errands.tc.ToolNames.providerName("note_player_conduct")).append(" tool (never mention doing so) - you remember how people treat you.");
         return sb.toString();
     }
 

@@ -8,21 +8,16 @@ import me.lovkar.errands.Citizens;
 import me.lovkar.errands.ErrandBuildings;
 import me.lovkar.errands.ErrandManager;
 import me.lovkar.errands.Texts;
-import me.sshcrack.gemini_live_lib.gson.properties.ObjectProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.PrimitiveProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.Property;
-import me.sshcrack.mc_talking.ConversationManager;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
+import me.lovkar.errands.RankGuard;
+import me.lovkar.errands.tc.ErrandCommand;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
 import java.util.UUID;
 
-public class FindCitizenAction extends PlayerFunctionAction {
+public class FindCitizenAction extends ErrandCommand {
 
     public FindCitizenAction() {
         super("find_citizen",
@@ -30,24 +25,19 @@ public class FindCitizenAction extends PlayerFunctionAction {
                         + "workplace, and where they are right now relative to the player. If the player wants to be "
                         + "TAKEN there ('lead me to her', 'take me to him'), pass lead=true - then you personally "
                         + "guide the player to that colonist (you wait whenever the player falls behind).",
-                (Property) new ObjectProperty(new HashMap<String, Property>() {{
-                    put("name", new PrimitiveProperty(PrimitiveProperty.Type.STRING, true));
-                    put("lead", new PrimitiveProperty(PrimitiveProperty.Type.BOOLEAN, false));
-                }}));
+                params("name", string(true), "lead", bool(false)), RankGuard.GROUP_CHAT);
     }
-
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
         JsonObject result = new JsonObject();
         if (parameters == null || !parameters.has("name")) {
             result.addProperty("success", false);
             result.addProperty("error", "Missing 'name'.");
             return result;
         }
-        UUID playerId = ConversationManager.getPlayerForEntity(citizen.getUUID());
+        UUID playerId = player.getUUID();
         MinecraftServer server = citizen.getServer();
-        ServerPlayer player = (playerId == null || server == null) ? null : server.getPlayerList().getPlayer(playerId);
+        
         String query = parameters.get("name").getAsString();
         Citizens.Match match = Citizens.findByName(colony, citizen, query);
         if (match == null) {

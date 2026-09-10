@@ -7,23 +7,21 @@ import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import com.minecolonies.api.entity.citizen.citizenhandlers.ICitizenHappinessHandler;
 import com.minecolonies.api.entity.citizen.happiness.IHappinessModifier;
 import me.lovkar.errands.ColonistErrands;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import me.lovkar.errands.RankGuard;
+import me.lovkar.errands.tc.ErrandQuery;
+import net.minecraft.server.level.ServerPlayer;
 
-public class WhyUnhappyAction extends PlayerFunctionAction {
+public class WhyUnhappyAction extends ErrandQuery {
 
     public WhyUnhappyAction() {
         super("why_unhappy",
                 "The player asks how happy YOU are or why you are unhappy ('are you happy here?', 'why are you "
                         + "sad?', 'what is bothering you?'). Returns your REAL happiness score and the actual factors dragging "
                         + "it down (housing, food, security, health, job...). Voice them as your own honest feelings - "
-                        + "complain about the bad ones, appreciate the good - and do NOT read raw factor names or numbers aloud.");
+                        + "complain about the bad ones, appreciate the good - and do NOT read raw factor names or numbers aloud.", RankGuard.GROUP_CHAT);
     }
-
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
         JsonObject result = new JsonObject();
         ICitizenData data = citizen.getCitizenData();
         if (data == null) {

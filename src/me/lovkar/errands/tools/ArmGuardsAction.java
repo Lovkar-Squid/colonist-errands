@@ -6,25 +6,23 @@ import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import me.lovkar.errands.ColonistErrands;
 import me.lovkar.errands.GuardGearCheck;
 import me.lovkar.errands.Texts;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
+import me.lovkar.errands.RankGuard;
+import me.lovkar.errands.tc.ErrandCommand;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.MinecraftServer;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 /** "Get my guards armed" - orders every missing piece of kit through the colony. */
-public class ArmGuardsAction extends PlayerFunctionAction {
+public class ArmGuardsAction extends ErrandCommand {
 
     public ArmGuardsAction() {
         super("arm_guards",
                 "The player wants the guards EQUIPPED - 'arm all my guards', 'get the guards their armor', "
                         + "'prioritise arming the watch', 'order gear for whoever is missing it'. Files the colony's "
                         + "own equipment requests for every missing armor piece and weapon at once, instead of waiting "
-                        + "for each guard to notice at their hut. To only ASK who is missing what, use guard_gear.");
+                        + "for each guard to notice at their hut. To only ASK who is missing what, use {guard_gear}.", RankGuard.GROUP_MILITARY);
     }
-
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
         JsonObject result = new JsonObject();
         String info;
         try {

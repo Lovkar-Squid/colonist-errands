@@ -1,5 +1,6 @@
 package me.lovkar.errands;
 
+import me.lovkar.errands.tc.Talk;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.buildings.IBuilding;
 import com.minecolonies.api.entity.ai.statemachine.AIOneTimeEventTarget;
@@ -12,7 +13,6 @@ import com.minecolonies.core.colony.buildings.AbstractBuildingGuards;
 import com.minecolonies.core.colony.buildings.modules.settings.GuardFollowModeSetting;
 import com.minecolonies.core.colony.buildings.modules.settings.GuardTaskSetting;
 import com.minecolonies.core.entity.pathfinding.navigation.EntityNavigationUtils;
-import me.sshcrack.mc_talking.ConversationManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
@@ -155,34 +155,34 @@ public final class ErrandManager {
     public static synchronized void startBuildingErrand(AbstractEntityCitizen citizen, BlockPos pos, String name) {
         ERRANDS.put(citizen.getUUID(), new Errand(Kind.TO_BUILDING, citizen, pos, name, null, null,
                 ARRIVE_BUILDING_SQ, 20 * 240, null, false, null, 0));
-        ConversationManager.markBusy(citizen);
+        Talk.hold(citizen);
     }
 
     public static synchronized void startPosErrand(AbstractEntityCitizen citizen, BlockPos pos, String name,
                                                    int timeout, double arriveDistSq) {
         ERRANDS.put(citizen.getUUID(), new Errand(Kind.TO_POS, citizen, pos, name, null, null,
                 arriveDistSq, timeout, null, false, null, 0));
-        ConversationManager.markBusy(citizen);
+        Talk.hold(citizen);
     }
 
     public static synchronized void startWaitErrand(AbstractEntityCitizen citizen, int minutes) {
         BlockPos anchor = citizen.blockPosition();
         ERRANDS.put(citizen.getUUID(), new Errand(Kind.WAIT, citizen, anchor, "waiting spot", null, null,
                 0, minutes * 60 * 20, null, false, null, 0));
-        ConversationManager.markBusy(citizen);
+        Talk.hold(citizen);
     }
 
     public static synchronized void startFollowErrand(AbstractEntityCitizen citizen, UUID playerId) {
         ERRANDS.put(citizen.getUUID(), new Errand(Kind.FOLLOW, citizen, null, "player", playerId, null,
                 0, 20 * 300, null, false, null, 0));
-        ConversationManager.markBusy(citizen);
+        Talk.hold(citizen);
     }
 
     public static synchronized void startMessengerErrand(AbstractEntityCitizen citizen, IBuilding building,
                                                          UUID playerId, String name) {
         ERRANDS.put(citizen.getUUID(), new Errand(Kind.MESSENGER, citizen, building.getPosition(), name,
                 playerId, building, ARRIVE_BUILDING_SQ, 20 * 240, null, false, null, 0));
-        ConversationManager.markBusy(citizen);
+        Talk.hold(citizen);
         ColonistErrands.LOGGER.info("[Errand] {} -> messenger to '{}' at {}", safeName(citizen), name,
                 building.getPosition().toShortString());
     }
@@ -191,7 +191,7 @@ public final class ErrandManager {
     public static synchronized void startEatErrand(AbstractEntityCitizen citizen, IBuilding restaurant, UUID playerId) {
         ERRANDS.put(citizen.getUUID(), new Errand(Kind.TO_BUILDING, citizen, restaurant.getPosition(), "restaurant",
                 playerId, restaurant, ARRIVE_BUILDING_SQ, 20 * 240, GROUP_EAT, false, null, 0));
-        ConversationManager.markBusy(citizen);
+        Talk.hold(citizen);
         ColonistErrands.LOGGER.info("[Errand] {} -> going to EAT at the restaurant", safeName(citizen));
     }
 
@@ -199,7 +199,7 @@ public final class ErrandManager {
                                                      UUID playerId, Item item, int count) {
         ERRANDS.put(citizen.getUUID(), new Errand(Kind.FETCH_PICKUP, citizen, warehouse.getPosition(), "warehouse",
                 playerId, warehouse, ARRIVE_BUILDING_SQ, 20 * 240, null, false, item, count));
-        ConversationManager.markBusy(citizen);
+        Talk.hold(citizen);
         ColonistErrands.LOGGER.info("[Errand] {} -> fetching {}x {} from warehouse", safeName(citizen), count,
                 item.getDescription().getString());
     }
@@ -212,7 +212,7 @@ public final class ErrandManager {
                 playerId, warehouse, ARRIVE_BUILDING_SQ, 20 * 240, null, false, item, count);
         e.destBuilding = dest;
         ERRANDS.put(citizen.getUUID(), e);
-        ConversationManager.markBusy(citizen);
+        Talk.hold(citizen);
         ColonistErrands.LOGGER.info("[Courier] {} -> delivering {}x {} from warehouse to '{}'",
                 safeName(citizen), count, item.getDescription().getString(), destName);
     }
@@ -224,7 +224,7 @@ public final class ErrandManager {
                 25.0, 20 * 480, null, false, null, 0);
         e.targetCitizen = target;
         ERRANDS.put(guide.getUUID(), e);
-        ConversationManager.markBusy(guide);
+        Talk.hold(guide);
         ColonistErrands.LOGGER.info("[Guide] {} -> leading the player to {}", safeName(guide), targetName);
     }
 
@@ -520,7 +520,7 @@ public final class ErrandManager {
             citizen.getNavigation().stop();
         } catch (Throwable ignored) {
         }
-        ConversationManager.markNotBusy(citizen);
+        Talk.release(citizen);
     }
 
     // ------------------------------------------------------------------ tick
@@ -554,7 +554,7 @@ public final class ErrandManager {
                     && !ERRANDS.containsKey(p.citizen().getUUID())) {
                 ERRANDS.put(p.citizen().getUUID(), new Errand(p.kind(), p.citizen(), p.pos(), p.name(),
                         p.playerId(), null, p.arriveDistSq(), p.timeout(), p.group(), p.holdOnArrival(), null, 0));
-                ConversationManager.markBusy(p.citizen());
+                Talk.hold(p.citizen());
                 if (p.kind() == Kind.CONTACT_PLAYER) {
                     ColonistErrands.LOGGER.info("[Errand] {} starting walk to the player (messenger contact)",
                             safeName(p.citizen()));
@@ -616,9 +616,9 @@ public final class ErrandManager {
                 continue;
             }
 
-            ConversationManager.markBusy(citizen);
+            Talk.hold(citizen);
 
-            if (ConversationManager.getPlayerForEntity(citizen.getUUID()) != null) {
+            if (Talk.isTalkingToPlayer(citizen)) {
                 continue;
             }
 
@@ -744,14 +744,17 @@ public final class ErrandManager {
                             deliverFetched(e, citizen, player);
                         } else {
                             try {
-                                if (ConversationManager.isPlayerInConversation(player.getUUID())) {
+                                if (Talk.isPlayerInConversation(player)) {
                                     ColonistErrands.LOGGER.info("[Errand] {} reached player, but player is already in a conversation - standing by", safeName(citizen));
-                                } else if (!ConversationManager.canCitizenSpeak(citizen, true)) {
-                                    ColonistErrands.LOGGER.info("[Errand] {} reached player, but cannot speak (sleeping/visitor) - standing by", safeName(citizen));
                                 } else {
-                                    ConversationManager.forceRemoveCooldown(citizen);
-                                    ConversationManager.startPlayerConversation(player, citizen);
-                                    ColonistErrands.LOGGER.info("[Errand] {} reached player - starting conversation", safeName(citizen));
+                                    // Talk.startPlayerConversation lifts the automatic cooldown first; sleeping,
+                                    // visitor and "in use" come back as the reason when it will not start.
+                                    final String why = Talk.startPlayerConversation(player, citizen);
+                                    if (why == null) {
+                                        ColonistErrands.LOGGER.info("[Errand] {} reached player - starting conversation", safeName(citizen));
+                                    } else {
+                                        ColonistErrands.LOGGER.info("[Errand] {} reached player, but cannot speak ({}) - standing by", safeName(citizen), why);
+                                    }
                                 }
                             } catch (Throwable t) {
                                 ColonistErrands.LOGGER.warn("startPlayerConversation on messenger arrival failed", t);
@@ -940,7 +943,7 @@ public final class ErrandManager {
                 AbstractEntityCitizen b = opt.get();
                 if (!b.isAlive() || b.getUUID().equals(e.citizen.getUUID())) continue;
                 if (fallback == null) fallback = b;
-                if (!ConversationManager.isCitizenBusy(b)) {
+                if (!Talk.isBusy(b)) {
                     target = b;
                     break;
                 }

@@ -10,27 +10,25 @@ import com.minecolonies.api.research.ILocalResearch;
 import com.minecolonies.core.colony.buildings.workerbuildings.BuildingUniversity;
 import com.minecolonies.core.colony.jobs.JobResearch;
 import me.lovkar.errands.ColonistErrands;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
+import me.lovkar.errands.RankGuard;
+import me.lovkar.errands.tc.ErrandQuery;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.network.chat.ComponentContents;
 import net.minecraft.network.chat.MutableComponent;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
-public class ResearchStatusAction extends PlayerFunctionAction {
+public class ResearchStatusAction extends ErrandQuery {
 
     public ResearchStatusAction() {
         super("research_status",
                 "The player asks about RESEARCH ('how is the research going?', 'what are we researching?'). "
                         + "Returns the university level and every research in progress with its approximate "
                         + "completion percentage AND what each one actually unlocks (the name rarely says - 'Improved Swords' is the one that unlocks the Combat Academy). Lead with what it DOES. Summarize naturally; mention that a level 3+ university lets "
-                        + "researchers leverage time while the world is closed.");
+                        + "researchers leverage time while the world is closed.", RankGuard.GROUP_CHAT);
     }
-
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
         JsonObject result = new JsonObject();
         try {
             int uniLevel = 0;

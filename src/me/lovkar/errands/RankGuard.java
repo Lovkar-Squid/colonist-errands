@@ -6,7 +6,7 @@ import com.minecolonies.api.colony.permissions.IPermissions;
 import com.minecolonies.api.colony.permissions.Rank;
 import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import com.google.gson.JsonObject;
-import me.sshcrack.mc_talking.ConversationManager;
+import net.minecraft.server.level.ServerPlayer;
 
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -134,12 +134,13 @@ public final class RankGuard {
      * Gate for a command tool. @return null when allowed, else a polite refusal
      * JsonObject the model reads back to the player.
      */
-    public static JsonObject check(AbstractEntityCitizen citizen, IColony colony, String group, String toolName) {
+    public static JsonObject check(AbstractEntityCitizen citizen, IColony colony, String group, String toolName,
+                                   ServerPlayer player) {
         try {
-            UUID playerId = ConversationManager.getPlayerForEntity(citizen.getUUID());
-            if (playerId == null || colony == null) {
+            if (player == null || colony == null) {
                 return null; // not a player conversation - nothing to gate
             }
+            UUID playerId = player.getUUID();
             int tier = tierOf(colony, playerId);
             int needed = requiredTier(group, toolName);
             if (tier >= needed && tier > 0) {
@@ -149,7 +150,7 @@ public final class RankGuard {
             result.addProperty("success", false);
             String who;
             try {
-                who = AliasStore.display(citizen.getServer().getPlayerList().getPlayer(playerId).getGameProfile().getName());
+                who = AliasStore.display(player.getGameProfile().getName());
             } catch (Throwable t) {
                 who = "This player";
             }

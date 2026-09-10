@@ -1,12 +1,11 @@
 package me.lovkar.errands;
 
+import me.lovkar.errands.tc.Talk;
+import me.lovkar.errands.tc.PairChats;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.IColonyManager;
 import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
-import me.sshcrack.mc_talking.ConversationManager;
-import me.sshcrack.mc_talking.conversations.CitizenConversation;
-import me.sshcrack.mc_talking.duck.CitizenDataMemoryExtended;
 import net.minecraft.server.MinecraftServer;
 
 import java.util.ArrayList;
@@ -114,8 +113,9 @@ public final class FamilyChats {
                 + " - have a warm FAMILY chat: ask about their day, their work, how they feel. You are family.");
         addMemory(eb, "You run into your " + aIsToB + " " + a.getName()
                 + " - have a warm FAMILY chat: ask about their day, their work, how they feel. You are family.");
-        CitizenConversation conversation = new CitizenConversation(server, List.of(ea, eb));
-        conversation.performConversation();
+        if (PairChats.start(server, ea, eb, false) == null) {
+            return false;
+        }
         ColonistErrands.LOGGER.info("[Family] {} ({}) and {} ({}) start a family chat",
                 a.getName(), aIsToB, b.getName(), bIsToA);
         return true;
@@ -134,9 +134,9 @@ public final class FamilyChats {
             AbstractEntityCitizen eb = ob.get();
             if (!ea.isAlive() || !eb.isAlive() || ea.level() != eb.level()) return;
             if (ea.distanceToSqr(eb) > NEAR_DIST_SQR) return;
-            if (!ConversationManager.canCitizenSpeak(ea) || !ConversationManager.canCitizenSpeak(eb)) return;
-            if (ConversationManager.isCitizenBusy(ea) || ConversationManager.isCitizenBusy(eb)) return;
-            if (!C2cAudioFollower.isFreeToChat(ea) || !C2cAudioFollower.isFreeToChat(eb)) return;
+            if (!Talk.canChat(ea) || !Talk.canChat(eb)) return;
+            if (Talk.isBusy(ea) || Talk.isBusy(eb)) return;
+            if (!PairChats.isFreeToChat(ea) || !PairChats.isFreeToChat(eb)) return;
             out.add(new Object[]{a, b, bIsToA, aIsToB});
         } catch (Throwable ignored) {
         }
@@ -144,7 +144,7 @@ public final class FamilyChats {
 
     private static void addMemory(AbstractEntityCitizen c, String event) {
         try {
-            ((CitizenDataMemoryExtended) c.getCitizenData()).mc_talking$getOrInitializeMemory().addEvent(event);
+            Talk.remember(c.getCitizenData(), event);
         } catch (Throwable ignored) {
         }
     }

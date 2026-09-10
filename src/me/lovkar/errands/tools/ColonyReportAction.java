@@ -6,23 +6,21 @@ import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import com.minecolonies.core.colony.buildings.AbstractBuildingGuards;
 import me.lovkar.errands.ColonistErrands;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import me.lovkar.errands.RankGuard;
+import me.lovkar.errands.tc.ErrandQuery;
+import net.minecraft.server.level.ServerPlayer;
 
-public class ColonyReportAction extends PlayerFunctionAction {
+public class ColonyReportAction extends ErrandQuery {
 
     public ColonyReportAction() {
         super("colony_report",
                 "The player asks how the COLONY as a whole is doing ('how is the colony?', 'status report', "
                         + "'how are things around here?'). Returns real numbers: population, jobs, sick/hungry/homeless, "
                         + "guards, raids, research and construction. Summarize it naturally in your own voice - "
-                        + "lead with what matters most (dangers and problems first), don't read every number.");
+                        + "lead with what matters most (dangers and problems first), don't read every number.", RankGuard.GROUP_CHAT);
     }
-
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
         JsonObject result = new JsonObject();
         try {
             int total = 0, unemployed = 0, children = 0, sick = 0, hungry = 0, homeless = 0, guards = 0;

@@ -6,14 +6,10 @@ import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import me.lovkar.errands.FetchQueue;
 import me.lovkar.errands.ItemFinder;
 import me.lovkar.errands.Texts;
-import me.sshcrack.gemini_live_lib.gson.properties.ObjectProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.PrimitiveProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.Property;
-import me.sshcrack.mc_talking.ConversationManager;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
+import me.lovkar.errands.RankGuard;
+import me.lovkar.errands.tc.ErrandQuery;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
 import java.util.UUID;
@@ -23,7 +19,7 @@ import java.util.UUID;
  * and cancelling your own orders. Reading and cancelling touch only our own
  * queue, so no server-thread hop is needed.
  */
-public class CourierBoardAction extends PlayerFunctionAction {
+public class CourierBoardAction extends ErrandQuery {
 
     public CourierBoardAction() {
         super("courier_board",
@@ -32,14 +28,10 @@ public class CourierBoardAction extends PlayerFunctionAction {
                         + "or asks to CANCEL a queued order ('cancel my order', 'forget the iron ingots'). "
                         + "Pass 'cancel' with the item name to drop that order, or 'cancel' set to 'all' to drop "
                         + "every order the player has waiting. Without 'cancel' it just reports the board.",
-                (Property) new ObjectProperty(new HashMap<String, Property>() {{
-                    put("cancel", new PrimitiveProperty(PrimitiveProperty.Type.STRING, false));
-                }}));
+                params("cancel", string(false)), RankGuard.GROUP_ERRANDS);
     }
-
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
         JsonObject result = new JsonObject();
         int colonyId = colony.getID();
 
@@ -57,7 +49,7 @@ public class CourierBoardAction extends PlayerFunctionAction {
             return result;
         }
 
-        UUID playerId = ConversationManager.getPlayerForEntity(citizen.getUUID());
+        UUID playerId = player.getUUID();
         if (playerId == null) {
             result.addProperty("success", false);
             result.addProperty("error", "No player conversation is active.");

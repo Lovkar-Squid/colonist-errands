@@ -1,12 +1,12 @@
 package me.lovkar.errands;
 
+import me.lovkar.errands.tc.Talk;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import com.minecolonies.api.entity.mobs.AbstractEntityMinecoloniesRaider;
-import me.sshcrack.mc_talking.duck.CitizenDataMemoryExtended;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.entity.LivingEntity;
@@ -373,8 +373,7 @@ public final class GuardScore {
             if (cd != null && now - cd < 5 * 60_000L) return;
             LEAD_MEMO_COOLDOWN.put(colonyId, now);
             try {
-                ((CitizenDataMemoryExtended) data).mc_talking$getOrInitializeMemory()
-                        .addEvent("I just took the LEAD on the guard leaderboard (" + score(e)
+                Talk.remember(data, "I just took the LEAD on the guard leaderboard (" + score(e)
                                 + " points)! I am the best guard in the colony right now and PROUD of it.");
             } catch (Throwable ignored) {
             }
@@ -765,7 +764,7 @@ public final class GuardScore {
         try {
             ICitizenData data = citizenByName(colony, name);
             if (data == null) return;
-            ((CitizenDataMemoryExtended) data).mc_talking$getOrInitializeMemory().addEvent(text);
+            Talk.remember(data, text);
         } catch (Throwable ignored) {
         }
     }

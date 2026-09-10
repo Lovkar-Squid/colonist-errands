@@ -8,6 +8,10 @@ Talking Colonists gives your MineColonies citizens AI voices. Colonist Errands g
 conversations **consequences**: what you say to a colonist actually happens in the colony — and
 what a colonist tells you is checked against the colony's real state first.
 
+> **3.0.0-alpha.1** is Colonist Errands rebuilt on the **Talking Colonists 2.0 addon API** - it needs
+> Talking Colonists 2.0.0-alpha.2 or newer and does not load on 1.7.x (use 2.2.0 there). Same 42
+> tools, same prompt blocks, same promises and chats; huddles are real three-way conversations now.
+> Alpha, for dev instances (see the changelog).
 > **2.1.2** is 2.1.1 packaged properly - the 2.1.1 jar had broken ZIP headers and stopped the game
 > from starting ("invalid entry size" on the early loading screen); nothing in the code changed.
 > **2.1.1** fixes the colonist who stood under "Listening" all night and never went to bed - a
@@ -111,7 +115,7 @@ a discovery or a sale. Everyone else hears a sentence of news about each.
 ## Requirements
 
 - Minecraft **1.21.1**, NeoForge **21.1.x**
-- **Talking Colonists (mc_talking) 1.7.x** — with a working Gemini API key configured
+- **Talking Colonists (mc_talking) 2.0.0-alpha.2 or newer** (3.0.x) — with a working Gemini API key configured. For Talking Colonists **1.7.x** use Colonist Errands **2.2.0**
 - **MineColonies 1.1.1300+**
 - Simple Voice Chat (required by Talking Colonists) and a microphone
 - **MC Trade Post** is optional — the marketplace and economy features simply stay quiet without it
@@ -135,7 +139,7 @@ Files appear in `config/` after first launch:
 | `colonist_errands_guard_week.txt` | which week the current season belongs to |
 | `colonist_errands_guard_sidebar.txt` | scoreboard sidebar state |
 | `colonist_errands_fallen.json` | the colony's roll of honour |
-| `colonist_errands_blocked_voices.txt` | self-learned list of TTS voices the API rejects |
+| `colonist_errands_blocked_voices.txt` | (2.x only) self-learned list of TTS voices the API rejects - 3.0 leaves voices to Talking Colonists |
 
 To silence MineColonies' own canned citizen lines (the "is there a problem" / "right away" barks)
 while keeping the AI voices, set `enablecitizenvoices = false` in

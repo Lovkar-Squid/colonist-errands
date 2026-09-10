@@ -6,10 +6,10 @@ import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import me.lovkar.errands.ColonistErrands;
 import me.lovkar.errands.Texts;
 import me.lovkar.errands.TradePost;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
+import me.lovkar.errands.RankGuard;
+import me.lovkar.errands.tc.ErrandQuery;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.MinecraftServer;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 /**
  * MC Trade Post economy report: treasury, marketplaces, shopkeepers, sales and
@@ -17,7 +17,7 @@ import org.jetbrains.annotations.Nullable;
  * guesswork - Lovkar kept hitting "this marketplace cannot mint coins" with no
  * explanation of why.
  */
-public class TradeStatusAction extends PlayerFunctionAction {
+public class TradeStatusAction extends ErrandQuery {
 
     public TradeStatusAction() {
         super("trade_status",
@@ -26,12 +26,10 @@ public class TradeStatusAction extends PlayerFunctionAction {
                         + "'why can't we mint trade coins?', 'how are sales going?'. Reports the treasury, "
                         + "each marketplace with its level and shopkeeper, items sold and earned, coins minted, "
                         + "and whether minting is possible. Report it conversationally, like a shopkeeper "
-                        + "talking shop - not as a table.");
+                        + "talking shop - not as a table.", RankGuard.GROUP_CHAT);
     }
-
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
         JsonObject result = new JsonObject();
         String info;
         try {

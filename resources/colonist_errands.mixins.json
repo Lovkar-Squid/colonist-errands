@@ -7,17 +7,7 @@
     "defaultRequire": 0
   },
   "mixins": [
-    "GeminiFlashMixin",
-    "CitizenPromptServiceMixin",
-    "GeminiWsClientMixin",
-    "CitizenNeedAssessorMixin",
-    "PregenerationPlaybackMixin",
-    "PregenerationTaskServiceMixin",
-    "McTalkingVoicechatPluginMixin",
-    "CitizenConversationMixin",
-    "RandomConversationHandlerMixin",
     "ItemAssistantHammerMixin",
-    "BlockHutTavernMixin",
-    "ConversationManagerMixin"
+    "BlockHutTavernMixin"
   ]
 }

@@ -6,41 +6,33 @@ import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import me.lovkar.errands.Citizens;
 import me.lovkar.errands.ErrandManager;
 import me.lovkar.errands.Texts;
-import me.sshcrack.gemini_live_lib.gson.properties.ObjectProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.PrimitiveProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.Property;
-import me.sshcrack.mc_talking.ConversationManager;
-import me.sshcrack.mc_talking.duck.CitizenDataMemoryExtended;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import me.lovkar.errands.tc.Talk;
+import me.lovkar.errands.RankGuard;
+import me.lovkar.errands.tc.ErrandCommand;
+import net.minecraft.server.level.ServerPlayer;
 
 import java.util.HashMap;
 import java.util.UUID;
 
-public class CallCitizenAction extends PlayerFunctionAction {
+public class CallCitizenAction extends ErrandCommand {
 
     public CallCitizenAction() {
         super("call_citizen",
                 "Send for a SPECIFIC colonist BY NAME: the player asks for someone ('call Elyse for me', "
                         + "'send Hada over', 'I want to talk to the builder Rodbertus'). That colonist walks to the "
                         + "player and starts a conversation on arrival. Pass the name exactly as the player said it "
-                        + "(first name is enough). For groups of guards use summon_guards/gather_at instead.",
-                (Property) new ObjectProperty(new HashMap<String, Property>() {{
-                    put("name", new PrimitiveProperty(PrimitiveProperty.Type.STRING, true));
-                }}));
+                        + "(first name is enough). For groups of guards use {summon_guards}/{gather_at} instead.",
+                params("name", string(true)), RankGuard.GROUP_ERRANDS);
     }
-
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
         JsonObject result = new JsonObject();
         if (parameters == null || !parameters.has("name")) {
             result.addProperty("success", false);
             result.addProperty("error", "Missing 'name'.");
             return result;
         }
-        UUID playerId = ConversationManager.getPlayerForEntity(citizen.getUUID());
+        UUID playerId = player.getUUID();
         if (playerId == null) {
             result.addProperty("success", false);
             result.addProperty("error", "No player conversation is active.");
@@ -61,8 +53,7 @@ public class CallCitizenAction extends PlayerFunctionAction {
         }
         AbstractEntityCitizen target = match.data.getEntity().get();
         try {
-            ((CitizenDataMemoryExtended) match.data).mc_talking$getOrInitializeMemory()
-                    .addEvent("The player sent for you personally - you are walking over to talk to them now.");
+            Talk.remember(match.data, "The player sent for you personally - you are walking over to talk to them now.");
         } catch (Throwable ignored) {
         }
         ErrandManager.enqueueContactPlayer(target, playerId);

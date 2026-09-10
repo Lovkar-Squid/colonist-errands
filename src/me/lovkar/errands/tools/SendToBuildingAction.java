@@ -11,20 +11,17 @@ import me.lovkar.errands.ColonistErrands;
 import me.lovkar.errands.ErrandBuildings;
 import me.lovkar.errands.ErrandManager;
 import me.lovkar.errands.Texts;
-import me.sshcrack.gemini_live_lib.gson.properties.EnumProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.ObjectProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.PrimitiveProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.Property;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
+import me.lovkar.errands.RankGuard;
+import me.lovkar.errands.tc.ErrandCommand;
+import me.lovkar.errands.tc.Talk;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.core.BlockPos;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-public class SendToBuildingAction extends PlayerFunctionAction {
+public class SendToBuildingAction extends ErrandCommand {
 
     private static final List<String> TARGETS = buildTargets();
 
@@ -44,16 +41,11 @@ public class SendToBuildingAction extends PlayerFunctionAction {
                         + "sending a hungry one to 'cook' (the restaurant) makes them actually eat there. "
                         + "If the player calls the building by a NAME (e.g. 'the gatehouse'), also pass it as building_name - "
                         + "renamed buildings are found by name and take priority. "
-                        + "You will start walking as soon as the current conversation ends, so say a short goodbye and call leave_conversation right after calling this.",
-                (Property) new ObjectProperty(new HashMap<String, Property>() {{
-                    put("target", new EnumProperty(TARGETS, true));
-                    put("building_name", new PrimitiveProperty(PrimitiveProperty.Type.STRING, false));
-                }}));
+                        + "You will start walking as soon as the current conversation ends, so say a short goodbye and call {leave_conversation} right after calling this.",
+                params("target", enumOf(TARGETS, true), "building_name", string(false)), RankGuard.GROUP_ERRANDS);
     }
-
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
         JsonObject result = new JsonObject();
         if (parameters == null || !parameters.has("target")) {
             result.addProperty("success", false);
@@ -122,9 +114,7 @@ public class SendToBuildingAction extends PlayerFunctionAction {
                         extra = " You ARE sick, so you are now registered as a patient: you will stay at the hospital "
                                 + "and rest there until the doctor treats you.";
                         try {
-                            ((me.sshcrack.mc_talking.duck.CitizenDataMemoryExtended) data)
-                                    .mc_talking$getOrInitializeMemory()
-                                    .addEvent("You are admitted at the HOSPITAL and being treated - the healer will "
+                            Talk.remember(data, "You are admitted at the HOSPITAL and being treated - the healer will "
                                             + "cure you. You feel taken care of: REST, do not chase anyone around to "
                                             + "complain about being sick.");
                         } catch (Throwable ignored) {
@@ -141,7 +131,7 @@ public class SendToBuildingAction extends PlayerFunctionAction {
                     double sat = data.getSaturation();
                     if (sat < 16.0) {
                         // Actually EAT there: on arrival we serve real food from the racks.
-                        java.util.UUID pid = me.sshcrack.mc_talking.ConversationManager.getPlayerForEntity(citizen.getUUID());
+                        java.util.UUID pid = player.getUUID();
                         ErrandManager.startEatErrand(citizen, b, pid);
                         result.addProperty("success", true);
                         result.addProperty("info", "You are hungry (saturation " + Math.round(sat) + "/20). You will walk "

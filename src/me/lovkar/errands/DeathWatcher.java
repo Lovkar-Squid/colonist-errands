@@ -1,5 +1,7 @@
 package me.lovkar.errands;
 
+import me.lovkar.errands.tc.PairChats;
+import me.lovkar.errands.tc.Talk;
 import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.IColonyManager;
@@ -10,9 +12,6 @@ import com.minecolonies.core.colony.buildings.workerbuildings.BuildingGraveyard;
 import com.minecolonies.core.colony.eventhooks.citizenEvents.CitizenBornEvent;
 import com.minecolonies.core.colony.eventhooks.citizenEvents.CitizenDiedEvent;
 import com.minecolonies.core.colony.eventhooks.citizenEvents.CitizenGrownUpEvent;
-import me.sshcrack.mc_talking.ConversationManager;
-import me.sshcrack.mc_talking.conversations.CitizenConversation;
-import me.sshcrack.mc_talking.duck.CitizenDataMemoryExtended;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 
@@ -140,10 +139,11 @@ public final class DeathWatcher {
             if (parentEntities.size() == 2) {
                 AbstractEntityCitizen a = parentEntities.get(0);
                 AbstractEntityCitizen b = parentEntities.get(1);
-                if (ConversationManager.canCitizenSpeak(a) && ConversationManager.canCitizenSpeak(b)
-                        && !ConversationManager.isCitizenBusy(a) && !ConversationManager.isCitizenBusy(b)) {
-                    new CitizenConversation(server, List.of(a, b)).performConversation();
-                    ColonistErrands.LOGGER.info("[Family] Proud parents {} start a celebration chat", parentsLabel);
+                if (Talk.canChat(a) && Talk.canChat(b)
+                        && !Talk.isBusy(a) && !Talk.isBusy(b)) {
+                    if (PairChats.start(server, a, b, false) != null) {
+                        ColonistErrands.LOGGER.info("[Family] Proud parents {} start a celebration chat", parentsLabel);
+                    }
                 }
             }
         } catch (Throwable t) {
@@ -232,7 +232,7 @@ public final class DeathWatcher {
 
     private static void addMemory(AbstractEntityCitizen c, String event) {
         try {
-            ((CitizenDataMemoryExtended) c.getCitizenData()).mc_talking$getOrInitializeMemory().addEvent(event);
+            Talk.remember(c.getCitizenData(), event);
         } catch (Throwable ignored) {
         }
     }
@@ -248,7 +248,7 @@ public final class DeathWatcher {
             }
             List<AbstractEntityCitizen> free = new ArrayList<>(2);
             for (AbstractEntityCitizen c : witnesses) {
-                if (ConversationManager.canCitizenSpeak(c) && !ConversationManager.isCitizenBusy(c)) {
+                if (Talk.canChat(c) && !Talk.isBusy(c)) {
                     free.add(c);
                     if (free.size() == 2) break;
                 }
@@ -257,10 +257,10 @@ public final class DeathWatcher {
                 return;
             }
             lastMourningChatMs = System.currentTimeMillis();
-            CitizenConversation conversation = new CitizenConversation(server, List.of(free.get(0), free.get(1)));
-            conversation.performConversation();
-            ColonistErrands.LOGGER.info("[Mourning] {} and {} started a mourning conversation",
-                    safeName(free.get(0)), safeName(free.get(1)));
+            if (PairChats.start(server, free.get(0), free.get(1), false) != null) {
+                ColonistErrands.LOGGER.info("[Mourning] {} and {} started a mourning conversation",
+                        safeName(free.get(0)), safeName(free.get(1)));
+            }
         } catch (Throwable t) {
             ColonistErrands.LOGGER.warn("mourning chat failed", t);
         }

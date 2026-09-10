@@ -5,23 +5,21 @@ import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import me.lovkar.errands.ErrandManager;
 import me.lovkar.errands.WatchManager;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import me.lovkar.errands.RankGuard;
+import me.lovkar.errands.tc.ErrandCommand;
+import net.minecraft.server.level.ServerPlayer;
 
-public class StopErrandAction extends PlayerFunctionAction {
+public class StopErrandAction extends ErrandCommand {
 
     public StopErrandAction() {
         super("stop_errand",
                 "Stop your current errand (walking somewhere, waiting, following, or escorting the player as a guard) "
                         + "and return to your normal routine. Use when the player says stop, that's enough, you can go, "
                         + "you're free, or go back to work. After stopping, if the player is done talking, also call "
-                        + "leave_conversation.");
+                        + "{leave_conversation}.", RankGuard.GROUP_ERRANDS);
     }
-
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
         JsonObject result = new JsonObject();
         boolean hadErrand = ErrandManager.cancel(citizen);
         boolean hadGuard = ErrandManager.stopGuardFollowFor(citizen);

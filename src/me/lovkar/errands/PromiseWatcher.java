@@ -1,5 +1,6 @@
 package me.lovkar.errands;
 
+import me.lovkar.errands.tc.Talk;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.IColonyManager;
@@ -7,7 +8,6 @@ import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import com.minecolonies.api.entity.citizen.happiness.ExpirationBasedHappinessModifier;
 import com.minecolonies.api.entity.citizen.happiness.StaticHappinessSupplier;
 import com.minecolonies.core.colony.eventhooks.buildingEvents.AbstractBuildingEvent;
-import me.sshcrack.mc_talking.duck.CitizenDataMemoryExtended;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -183,8 +183,7 @@ public final class PromiseWatcher {
         } catch (Throwable ignored) {
         }
         try {
-            ((CitizenDataMemoryExtended) cd).mc_talking$getOrInitializeMemory()
-                    .addEvent("You just realized " + maker + "'s promise to you (\"" + p.text + "\") came TRUE - "
+            Talk.remember(cd, "You just realized " + maker + "'s promise to you (\"" + p.text + "\") came TRUE - "
                             + detail + "! You are delighted; thank " + maker + " warmly the next time you talk.");
         } catch (Throwable ignored) {
         }

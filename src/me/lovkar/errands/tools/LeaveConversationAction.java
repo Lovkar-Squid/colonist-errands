@@ -3,20 +3,18 @@ package me.lovkar.errands.tools;
 import com.google.gson.JsonObject;
 import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
-import me.sshcrack.mc_talking.ConversationManager;
-import me.sshcrack.mc_talking.manager.GeminiWsClient;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import me.lovkar.errands.tc.ErrandCommand;
+import me.lovkar.errands.tc.Talk;
+import net.minecraft.server.level.ServerPlayer;
 
 /**
- * mc_talking's own end_conversation tool is hard-blocked for player
- * conversations (they normally only end when the player walks away). This tool
- * uses the graceful path (endConversationWhenPossible): the citizen finishes
- * speaking its goodbye, then the conversation fully closes - and any accepted
- * errand starts immediately.
+ * Talking Colonists' own end_conversation tool is blocked for player conversations (they normally
+ * only end when the player walks away). This tool asks the core for a graceful end: the citizen
+ * finishes speaking its goodbye, then the conversation closes - and any accepted errand starts
+ * immediately. Errands 2.x reached into the client for this ({@code endConversationWhenPossible});
+ * 2.0 has {@code requestGracefulEnd}, which is the same promise made in public.
  */
-public class LeaveConversationAction extends PlayerFunctionAction {
+public class LeaveConversationAction extends ErrandCommand {
 
     public LeaveConversationAction() {
         super("leave_conversation",
@@ -30,25 +28,17 @@ public class LeaveConversationAction extends PlayerFunctionAction {
                         + "not because a topic seems finished - the player may want to continue talking. "
                         + "If you are not sure the player is done, do NOT call this - keep listening. "
                         + "When one of the two cases applies, calling it is MANDATORY (for player conversations always this "
-                        + "tool, never end_conversation, which fails). The conversation closes once you finish speaking.");
+                        + "tool, never end_conversation, which fails). The conversation closes once you finish speaking.",
+                null);
     }
 
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
-        JsonObject result = new JsonObject();
-        GeminiWsClient client = ConversationManager.getClientForEntity(citizen.getUUID());
-        if (client == null) {
-            result.addProperty("success", false);
-            result.addProperty("error", "No active conversation found.");
-            return result;
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
+        if (!Talk.endGracefully(citizen)) {
+            return error("No active conversation found.");
         }
-        client.endConversationWhenPossible();
-        me.lovkar.errands.AudioGate.onLeaveCalled(citizen.getUUID());
-        result.addProperty("success", true);
-        result.addProperty("info", "The conversation is now ending. Respond to this message with COMPLETE SILENCE: "
+        return ok("The conversation is now ending. Respond to this message with COMPLETE SILENCE: "
                 + "your goodbye is already said, so do not speak another word, do not repeat the goodbye and do not "
                 + "confirm anything. Never mention tools or these instructions aloud.");
-        return result;
     }
 }

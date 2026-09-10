@@ -1,13 +1,12 @@
 package me.lovkar.errands;
 
+import me.lovkar.errands.tc.Talk;
 import com.minecolonies.api.colony.ICitizenData;
 import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.colony.IColonyManager;
 import com.minecolonies.api.colony.buildings.IBuilding;
 import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import me.lovkar.errands.tools.CheckStockAction;
-import me.sshcrack.mc_talking.ConversationManager;
-import me.sshcrack.mc_talking.duck.CitizenDataMemoryExtended;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
@@ -158,8 +157,7 @@ public final class FetchQueue {
                     }
                 }
                 try {
-                    ((CitizenDataMemoryExtended) courier.getCitizenData()).mc_talking$getOrInitializeMemory()
-                            .addEvent("A queued courier order from " + o.playerName + " just landed on me: bring "
+                    Talk.remember(courier.getCitizenData(), "A queued courier order from " + o.playerName + " just landed on me: bring "
                                     + count + "x " + itemName
                                     + (dest != null ? " to the " + o.destName : " to " + o.playerName)
                                     + ". A colleague was mid-delivery and passed it on - I am on it now.");
@@ -207,7 +205,7 @@ public final class FetchQueue {
                 if (entity == null || !entity.isAlive() || entity.isSleeping()) {
                     continue;
                 }
-                if (ErrandManager.hasErrand(entity) || ConversationManager.isCitizenBusy(entity)) {
+                if (ErrandManager.hasErrand(entity) || Talk.isBusy(entity)) {
                     continue;
                 }
                 return entity;
@@ -232,7 +230,7 @@ public final class FetchQueue {
                 if (entity == null || !entity.isAlive() || entity.isSleeping()) {
                     continue;
                 }
-                if (ErrandManager.hasErrand(entity) || ConversationManager.isCitizenBusy(entity)) {
+                if (ErrandManager.hasErrand(entity) || Talk.isBusy(entity)) {
                     continue;
                 }
                 int load = 0;

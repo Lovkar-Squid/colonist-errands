@@ -7,17 +7,14 @@ import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import com.minecolonies.api.entity.citizen.happiness.ExpirationBasedHappinessModifier;
 import com.minecolonies.api.entity.citizen.happiness.StaticHappinessSupplier;
 import me.lovkar.errands.PromiseStore;
-import me.sshcrack.gemini_live_lib.gson.properties.ObjectProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.PrimitiveProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.Property;
-import me.sshcrack.mc_talking.duck.CitizenDataMemoryExtended;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import me.lovkar.errands.tc.Talk;
+import me.lovkar.errands.RankGuard;
+import me.lovkar.errands.tc.ErrandCommand;
+import net.minecraft.server.level.ServerPlayer;
 
 import java.util.HashMap;
 
-public class ResolvePromiseAction extends PlayerFunctionAction {
+public class ResolvePromiseAction extends ErrandCommand {
 
     public ResolvePromiseAction() {
         super("resolve_promise",
@@ -27,14 +24,10 @@ public class ResolvePromiseAction extends PlayerFunctionAction {
                         + "broken or cancelled ('I can't keep that promise') - you may be visibly disappointed. Call "
                         + "it only when fulfillment or cancellation actually happened in the conversation, never on "
                         + "your own guess.",
-                (Property) new ObjectProperty(new HashMap<String, Property>() {{
-                    put("kept", new PrimitiveProperty(PrimitiveProperty.Type.BOOLEAN, true));
-                }}));
+                params("kept", bool(true)), RankGuard.GROUP_CHAT);
     }
-
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
         JsonObject result = new JsonObject();
         ICitizenData data = citizen.getCitizenData();
         if (data == null || parameters == null || !parameters.has("kept")) {
@@ -51,7 +44,7 @@ public class ResolvePromiseAction extends PlayerFunctionAction {
             return result;
         }
         // Multiplayer: resolve the CURRENT speaker's own promise first.
-        String account = me.lovkar.errands.PlayerIdentityBlock.conversingPlayerName(citizen);
+        String account = player.getGameProfile().getName();
         PromiseStore.Promise p = PromiseStore.resolveOldest(data.getName(), kept, account);
         if (p == null) {
             result.addProperty("success", false);
@@ -66,8 +59,7 @@ public class ResolvePromiseAction extends PlayerFunctionAction {
                     + "mention that ('so " + maker + " came through after all' style).";
         }
         try {
-            ((CitizenDataMemoryExtended) data).mc_talking$getOrInitializeMemory()
-                    .addEvent(kept ? maker + " KEPT their promise: \"" + text + "\". You are grateful to " + maker + "."
+            Talk.remember(data, kept ? maker + " KEPT their promise: \"" + text + "\". You are grateful to " + maker + "."
                             : maker + " BROKE/cancelled their promise: \"" + text + "\". You are disappointed in " + maker + ".");
         } catch (Throwable ignored) {
         }

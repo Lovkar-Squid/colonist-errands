@@ -5,16 +5,13 @@ import com.minecolonies.api.colony.IColony;
 import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import me.lovkar.errands.GuardScore;
 import me.lovkar.errands.Texts;
-import me.sshcrack.gemini_live_lib.gson.properties.ObjectProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.PrimitiveProperty;
-import me.sshcrack.gemini_live_lib.gson.properties.Property;
-import me.sshcrack.mc_talking.manager.tools.PlayerFunctionAction;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import me.lovkar.errands.RankGuard;
+import me.lovkar.errands.tc.ErrandCommand;
+import net.minecraft.server.level.ServerPlayer;
 
 import java.util.HashMap;
 
-public class GuardLeaderboardAction extends PlayerFunctionAction {
+public class GuardLeaderboardAction extends ErrandCommand {
 
     public GuardLeaderboardAction() {
         super("guard_leaderboard",
@@ -24,14 +21,10 @@ public class GuardLeaderboardAction extends PlayerFunctionAction {
                         + "minus damage taken, capped at half of what they earned). Announce it with flair, like a tournament herald - names and points, "
                         + "not a dry list. Optional 'sidebar': true shows the live leaderboard on everyone's screen, "
                         + "false hides it ('put the leaderboard on screen' / 'hide the leaderboard').",
-                (Property) new ObjectProperty(new HashMap<String, Property>() {{
-                    put("sidebar", new PrimitiveProperty(PrimitiveProperty.Type.BOOLEAN, false));
-                }}));
+                params("sidebar", bool(false)), RankGuard.GROUP_CHAT);
     }
-
     @Override
-    @NotNull
-    public JsonObject execute(AbstractEntityCitizen citizen, IColony colony, @Nullable JsonObject parameters) {
+    protected JsonObject run(AbstractEntityCitizen citizen, IColony colony, JsonObject parameters, ServerPlayer player) {
         JsonObject result = new JsonObject();
         try {
             String board = GuardScore.leaderboardText(colony.getID());
