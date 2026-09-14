@@ -28,7 +28,14 @@ public class TakeJobAction extends ErrandCommand {
                         + "as the player named it - PROFESSION words work too (carpenter=sawmill, courier, chef, "
                         + "smelter, researcher, healer, undertaker, planter, quarrier...), building types and custom "
                         + "building names as well. "
-                        + "On success you are hired on the spot and walk to your new workplace.",
+                        + "On success you are hired on the spot and walk to your new workplace. "
+                        + "USE THIS TOOL TOO when the player names the WORK instead of the job or the hut - "
+                        + "'go chop some wood' (forester), 'go mining' / 'get me some iron' (miner), 'plant a "
+                        + "field' (farmer), 'go fishing' (fisherman), 'go build that' (builder). A colonist "
+                        + "cannot do any of those as a one-off errand; taking the job is the only way it ever "
+                        + "happens, so offer that. If the colony has no such workplace this tool says so and "
+                        + "nothing changes - tell the player honestly that it has to be built first, and never "
+                        + "answer as though you were on your way.",
                 params("building", string(true)), RankGuard.GROUP_JOBS);
     }
     @Override

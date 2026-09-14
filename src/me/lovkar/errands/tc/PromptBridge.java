@@ -17,6 +17,7 @@ import me.lovkar.errands.FoodCheck;
 import me.lovkar.errands.GuardGearCheck;
 import me.lovkar.errands.GuardScore;
 import me.lovkar.errands.HomeCheck;
+import me.lovkar.errands.WorkTruth;
 import me.lovkar.errands.PlayerIdentityBlock;
 import me.lovkar.errands.PromiseStore;
 import me.lovkar.errands.ResearchWatcher;
@@ -96,6 +97,12 @@ public final class PromptBridge implements CitizenPromptContributor {
         final StringBuilder guidance = new StringBuilder();
         append(guidance, AliasStore::promptBlock);
         append(guidance, () -> PlayerIdentityBlock.build(view));
+        if (name != null) {
+            // nikochilv0's report: told to chop wood, a colonist answered as if he were going and
+            // then stood still. There is no tool for free-form labour and there never was; what was
+            // missing is a colonist who says so instead of playing along.
+            append(guidance, () -> WorkTruth.promptLine(name));
+        }
 
         final StringBuilder colony = new StringBuilder();
         if (name != null) {

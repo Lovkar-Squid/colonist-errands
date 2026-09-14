@@ -96,7 +96,7 @@ public class ColonistErrands {
         if (registered < 0) {
             return;
         }
-        LOGGER.info("[ColonistErrands] Registered {} of {} tools with Talking Colonists (v3.0.0-alpha.1, addon API {}); "
+        LOGGER.info("[ColonistErrands] Registered {} of {} tools with Talking Colonists (v3.0.0-alpha.2, addon API {}); "
                 + "rank-gated per config. Voyager mod {}", registered, tools.size(),
                 me.sshcrack.mc_talking.api.TalkingColonistsApi.API_MAJOR_VERSION,
                 VoyagerCompat.isLoaded() ? "detected - Voyager, astronomer and photographer lore enabled" : "not installed");
@@ -172,6 +172,7 @@ public class ColonistErrands {
         Fallen.clearAll();
         ResearchWatcher.clearAll();
         HomeCheck.clearAll();
+        WorkTruth.clearAll();
         HospitalCheck.clearAll();
         BuildWatch.clearAll();
         BedCheck.clearAll();

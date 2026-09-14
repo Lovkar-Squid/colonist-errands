@@ -14,6 +14,7 @@ import com.minecolonies.api.colony.IColonyManager;
 import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
 import me.lovkar.errands.tc.PairChats;
 import me.lovkar.errands.tc.PromptBridge;
+import me.lovkar.errands.tc.ToolNames;
 import me.lovkar.errands.tc.Rules;
 import me.lovkar.errands.tc.Talk;
 import me.lovkar.errands.tc.ToolNames;
@@ -83,9 +84,31 @@ public class ErrandsTest {
     }
 
     private void setUp(final ServerLevel level) {
+        // Not the FIRST colony: the rig's world is not always wiped and MineColonies keeps the
+        // colonies of earlier runs, so the first one in the list is usually a dead town with
+        // nobody in it. Take the one that has citizens, newest first.
+        int best = -1;
         for (final IColony c : IColonyManager.getInstance().getAllColonies()) {
-            colony = c;
-            break;
+            int live = 0;
+            try {
+                for (final ICitizenData cd : c.getCitizenManager().getCitizens()) {
+                    if (cd.getEntity().isPresent()) {
+                        live++;
+                    }
+                }
+            } catch (final Throwable ignored) {
+            }
+            // most citizens actually standing in the world wins; a tie goes to the newest colony,
+            // because the one colonytest just built is always the highest id
+            if (live > best || (live == best && colony != null && c.getID() > colony.getID())) {
+                best = live;
+                colony = c;
+            }
+        }
+        if (colony != null) {
+            LOGGER.info("[errandstest] colony {} of {} known, {} citizen(s) on the books", colony.getID(),
+                    IColonyManager.getInstance().getAllColonies().size(),
+                    colony.getCitizenManager().getCitizens().size());
         }
         if (colony == null) {
             LOGGER.error("[errandstest] no colony - is the Voyager colony test running?");
@@ -94,6 +117,21 @@ public class ErrandsTest {
         final List<AbstractEntityCitizen> alive = new ArrayList<>();
         for (final ICitizenData cd : colony.getCitizenManager().getCitizens()) {
             cd.getEntity().ifPresent(alive::add);
+        }
+        if (alive.isEmpty()) {
+            // A colony with no real player in it goes INACTIVE and MineColonies takes the citizen
+            // entities away again - which on a headless server is every colony there is. Ask for
+            // them back; the data is still there, only the body is gone.
+            for (final ICitizenData cd : colony.getCitizenManager().getCitizens()) {
+                try {
+                    colony.getCitizenManager().spawnOrCreateCitizen(cd, level);
+                } catch (final Throwable ignored) {
+                }
+            }
+            for (final ICitizenData cd : colony.getCitizenManager().getCitizens()) {
+                cd.getEntity().ifPresent(alive::add);
+            }
+            LOGGER.info("[errandstest] colony was inactive - respawned {} citizen(s)", alive.size());
         }
         if (alive.isEmpty()) {
             LOGGER.error("[errandstest] the colony has no citizens");
@@ -146,10 +184,29 @@ public class ErrandsTest {
                         PromptSessionContext.empty());
                 final List<PromptContribution> onServer = new PromptBridge().contribute(ctx);
                 LOGGER.info("[errandstest] prompt contributions (server thread): {}", onServer.size());
+                String guidance = "";
                 for (final PromptContribution c : onServer) {
                     LOGGER.info("[errandstest]   [{}] {} ({} chars): {}", c.kind(), c.section(), c.text().length(),
                             c.text().substring(0, Math.min(160, c.text().length())).replace('\n', ' '));
+                    if (c.text().contains("WORK TRUTH")) {
+                        guidance = c.text();
+                    }
                 }
+                // nikochilv0's report: a colonist told to chop wood must say he cannot, not play along.
+                // The whole fix is one prompt block, so the only thing worth testing is that it is there
+                // and that it says something true about THIS citizen and THIS colony.
+                final int cut = guidance.indexOf("WORK TRUTH");
+                final String work = cut < 0 ? "" : guidance.substring(cut);
+                LOGGER.info("[errandstest] WORK TRUTH block: {}", work.replace('\n', ' '));
+                want("the work-truth block reaches the prompt", !work.isEmpty());
+                want("...it forbids playing along", work.contains("NEVER answer that you are on your way"));
+                // a prompt block is NOT a tool description: {placeholders} are resolved only when the
+                // core reads description(), so a block must name the tool through providerName itself
+                want("...it offers take_job by the name the model will see",
+                        work.contains(ToolNames.providerName("take_job")) && !work.contains("{take_job}"));
+                want("...it says what this citizen's job is", work.contains("NO job at all") || work.contains("Your job is:"));
+                want("...and what the colony cannot do at all", work.contains("workplace for chopping wood")
+                        || work.contains("chopping wood (the "));
                 // a provider thread asks while the server keeps ticking - the answer is read next phase
                 background = CompletableFuture.supplyAsync(() -> new PromptBridge().contribute(ctx));
             }
@@ -197,6 +254,7 @@ public class ErrandsTest {
                 discussion.stop();
                 session.end(ControlledConversationSession.EndReason.COMPLETED);
                 LOGGER.info("[errandstest] huddle ended: session state {}", session.state());
+                LOGGER.info(bad == 0 ? "[errandstest] RESULT ok" : "[errandstest] RESULT FAILED " + bad);
                 LOGGER.info("[errandstest] DONE");
             }
             default -> { }
@@ -257,6 +315,16 @@ public class ErrandsTest {
             return c.getCitizenData().getName();
         } catch (final Throwable t) {
             return "?";
+        }
+    }
+
+    private static int bad = 0;
+
+    /** One asserted fact, printed the way every other probe in this project prints them. */
+    private static void want(final String what, final boolean ok) {
+        LOGGER.info("[errandstest] {}: {}", what, ok ? "yes" : "WRONG");
+        if (!ok) {
+            bad++;
         }
     }
 }
