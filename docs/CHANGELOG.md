@@ -1,3 +1,42 @@
+# Colonist Errands 3.0.0-beta.1 — the first public build on the Talking Colonists 2.0 API
+
+Talking Colonists 2.0.0-beta.1 is out, and this is Colonist Errands rebuilt on its addon API.
+**It needs Talking Colonists 2.0.0-beta.1 or newer and does not load on 1.7.x** - 2.2.0 stays the
+version for that. Everything you can say to a colonist still works the same way; what changed is
+underneath, and two things that were wrong are fixed.
+
+**A colonist who cannot do a thing says so.** nikochilv0 reported citizens told to chop wood or go
+mining standing exactly where they were while the voice answered as though they were on their way.
+Nothing failed - the model simply never reached for a work tool, because a MineColonies colonist
+does not chop wood on request; a Forester does, from a Forester's Hut. Citizens now carry a
+guidance block that says work is a job and not an errand, what their own job is, and which of
+chopping, mining, farming, fishing, herding and building the colony can do at all - and if the hut
+is not standing, the honest answer is that it has to be built first. `take_job` also covers the
+phrasings people actually use ("go chop some wood", "go mining", "plant a field").
+
+**The name on the hut is not the name in the registry.** Twenty-six of MineColonies' fifty-two huts
+are registered under a different name than the sign says: the Forester's Hut is `lumberjack`, the
+Cowhand's Hut is `cowboy`, a Farm is `farmer`, a Residence is `citizen`. "forester" written in the
+work table matched no building in any colony, so citizens were told their colony had no workplace
+for chopping wood with a Forester's Hut standing in front of them - the same false confidence the
+bug report was about, shipped inside the fix for it. The aliases now cover every hut that differs,
+and the suffix strip no longer eats the middle of a word (the Rabbit Hutch came out as "rabbitch"
+and matched nothing). `tools/check_buildings.py` holds both tables against the installed
+MineColonies jar so it cannot come back.
+
+**On the new API** - the detail is in the 3.0.0-alpha.1 entry below: all 42 tools are registered
+through `AiToolRegistry` as commands and queries (the model sees them as `tc_7_errands_<name>`),
+the sixteen prompt blocks arrive as labelled contributions instead of through a mixin, an errand
+holds a citizen with an activity lease that the core takes away the moment a player speaks to them,
+family, shop, crew and mourning chats are pair conversations, and a huddle is a real three-way
+session with the floor passed round-robin. Ten of the twelve mixins are gone with the work the core
+now does itself; the two left touch MineColonies only.
+
+**Beta.** Built and checked against the published Talking Colonists 2.0.0-beta.1: the headless rig
+calls every tool through the API and exercises the lease, the prompt contributor from both threads,
+memory, a pair chat and a controlled session - and it has been running on my own dev instance for a
+week. If something is off, a `latest.log` with the report helps more than anything else.
+
 # Colonist Errands 3.0.0-alpha.1 — built on the Talking Colonists 2.0 addon API
 
 Talking Colonists 2.0 (in alpha) replaces its internals with a public addon API, and this is

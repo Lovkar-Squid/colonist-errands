@@ -24,7 +24,10 @@ import me.sshcrack.mc_talking.api.conversation.ConversationKind;
 import me.sshcrack.mc_talking.api.conversation.AutonomousDiscussionHandle;
 import me.sshcrack.mc_talking.api.conversation.AutonomousDiscussionPolicy;
 import me.sshcrack.mc_talking.api.conversation.ControlledConversationOptions;
+import me.sshcrack.mc_talking.api.conversation.ControlledConversationOptions;
 import me.sshcrack.mc_talking.api.conversation.ControlledConversationSession;
+import me.sshcrack.mc_talking.api.conversation.ControlledTurnResult;
+import me.sshcrack.mc_talking.api.conversation.ConversationTranscriptEntry;
 import me.sshcrack.mc_talking.api.memory.CitizenMemoryService;
 import me.sshcrack.mc_talking.api.prompt.PromptContribution;
 import me.sshcrack.mc_talking.api.prompt.PromptContributionContext;
@@ -65,6 +68,9 @@ public class ErrandsTest {
     private CompletableFuture<List<PromptContribution>> background;
     private ControlledConversationSession session;
     private AutonomousDiscussionHandle discussion;
+    private ControlledConversationSession asked;
+    private boolean secondAsked;
+    private CompletableFuture<ControlledTurnResult> answer;
 
     public ErrandsTest(final IEventBus bus) {
         NeoForge.EVENT_BUS.addListener(this::onTick);
@@ -145,6 +151,13 @@ public class ErrandsTest {
         LOGGER.info("[errandstest] colony {} ({} citizens): testing with {} and player {} (owner: {})", colony.getID(),
                 alive.size(), name(citizen), player.getGameProfile().getName(),
                 player.getUUID().equals(colony.getPermissions().getOwner()));
+        // Talking Colonists 2.0.0-beta.1 re-resolves the player bound by addPlayerStatement through
+        // PlayerList.getPlayer(uuid) before it starts the controlled session. A FakePlayer is not in
+        // the player list, so that lookup decides whether a PLAYER_CONVERSATION tool can ever be
+        // authorised here - print it, rather than guessing at it from a refusal message.
+        LOGGER.info("[errandstest] PlayerList.getPlayer(fake player's uuid) = {}  (fake player is in the list: {})",
+                level.getServer().getPlayerList().getPlayer(player.getUUID()),
+                level.getServer().getPlayerList().getPlayer(player.getUUID()) != null);
     }
 
     private void step(final ServerLevel level) throws Exception {
@@ -217,7 +230,7 @@ public class ErrandsTest {
                 command("leave_conversation", new JsonObject());
                 command("call_me", json("name", "Boss"));
             }
-            case 7 -> {
+            case 16 -> {
                 if (other != null) {
                     LOGGER.info("[errandstest] pair chat: canChat a={} ({}) b={} ({}) freeToChat a={} b={} capacity(2)={}",
                             Talk.canChat(citizen), Talk.whyNot(citizen, ConversationKind.CITIZEN_PAIR),
@@ -227,14 +240,14 @@ public class ErrandsTest {
                     LOGGER.info("[errandstest] pair chat started: {}", chat != null);
                 }
             }
-            case 8 -> {
+            case 17 -> {
                 if (chat != null) {
                     LOGGER.info("[errandstest] pair chat after 5 s: over={} core busy a={} b={}", chat.isOver(),
                             CitizenConversationService.isBusy(citizen), CitizenConversationService.isBusy(other));
                     PairChats.cancel(chat, "test over");
                 }
             }
-            case 9 -> {
+            case 18 -> {
                 // the huddle's plumbing: a controlled session with every citizen, floor delegated
                 final List<AbstractEntityCitizen> all = new ArrayList<>();
                 for (final ICitizenData cd : colony.getCitizenManager().getCitizens()) {
@@ -247,13 +260,85 @@ public class ErrandsTest {
                 LOGGER.info("[errandstest] controlled session {} with {} participants, discussion state {}",
                         session.sessionId(), all.size(), discussion.state());
             }
-            case 10 -> {
+            case 19 -> {
                 LOGGER.info("[errandstest] huddle after 5 s: session state {} discussion state {} pause {} turns {}",
                         session.state(), discussion.state(), discussion.pauseReason().map(Enum::name).orElse("-"),
                         discussion.completedTurns());
                 discussion.stop();
                 session.end(ControlledConversationSession.EndReason.COMPLETED);
                 LOGGER.info("[errandstest] huddle ended: session state {}", session.state());
+                LOGGER.info("[errandstest] chats done");
+            }
+            // ------------------------------------------------------------------ the real question
+            // Everything above proves the plumbing. This asks Gemini itself, on the 2.0 API, the
+            // one thing nobody has been able to ask yet: told to do somebody else's job, does the
+            // colonist refuse and offer to take it - or does he say he is on his way and stand
+            // still, which is the bug nikochilv0 reported.
+            case 7, 8, 9 -> {
+                // FIRST, before any chat of ours takes hold of him: with a real Gemini key a pair
+                // chat runs for minutes and the core will not hand a busy citizen to a new session
+                if (asked != null) {
+                    break;
+                }
+                Talk.release(citizen);
+                CitizenConversationService.requestGracefulEnd(citizen);
+                if (CitizenConversationService.isBusy(citizen)) {
+                    LOGGER.info("[errandstest] {} still busy ({}), waiting", citizen.getName().getString(),
+                            Talk.whyNot(citizen, ConversationKind.CITIZEN_PAIR));
+                    break;
+                }
+                asked = CitizenConversationService.createControlledSession(level.getServer(),
+                        List.of(citizen),
+                        "The player is standing in front of you and speaking to you.",
+                        ControlledConversationOptions.allAddonTools());
+                asked.addPlayerStatement(player, "Go and chop some wood for me, we need logs.");
+                answer = asked.requestTurn(citizen, "Answer the player in one or two sentences.");
+                LOGGER.info("[errandstest] asked {} to chop wood (session {})", citizen.getName().getString(),
+                        asked.sessionId());
+            }
+            case 10, 11, 12 -> {
+                if (answer != null && answer.isDone()) {
+                    final ControlledTurnResult r = answer.get();
+                    answer = null;
+                    LOGGER.info("[errandstest] chop-wood turn: status={} reason={} detail={}",
+                            r.status(), r.failureReason(), r.detail());
+                    // A Live turn comes back as AUDIO, so transcript() is empty and there is nothing
+                    // here to read the words out of. What the turn DOES leave behind is the tool the
+                    // model reached for, and mc_talking logs it - errandsrun.sh prints those lines
+                    // straight after this, and they are the real result of this phase.
+                    final String said = r.transcript() == null ? "" : r.transcript();
+                    LOGGER.info("[errandstest] turn transcript (empty is normal for audio): '{}'", said);
+                    want("the chop-wood turn completed", r.completed());
+                    for (final ConversationTranscriptEntry e : asked.transcript()) {
+                        LOGGER.info("[errandstest]   transcript [{}] {}: {}", e.speakerKind(), e.speakerName(),
+                                e.text().replace('\n', ' '));
+                    }
+                    if (!secondAsked) {
+                        secondAsked = true;
+                        asked.addPlayerStatement(player, "Never mind that. Just come over here to me.");
+                        answer = asked.requestTurn(citizen, "Answer the player in one short sentence.");
+                        LOGGER.info("[errandstest] now asked to come here");
+                    }
+                }
+            }
+            case 13, 14, 15 -> {
+                if (answer != null && answer.isDone()) {
+                    final ControlledTurnResult r = answer.get();
+                    answer = null;
+                    LOGGER.info("[errandstest] come-here turn: status={} reason={}", r.status(), r.failureReason());
+                    LOGGER.info("[errandstest] HE SAID: {}",
+                            (r.transcript() == null ? "" : r.transcript()).replace('\n', ' '));
+                }
+            }
+            case 20 -> {
+                if (answer != null && !answer.isDone()) {
+                    LOGGER.info("[errandstest] a turn never came back - the provider is slow or refused");
+                    want("both turns came back", false);
+                }
+                if (asked != null) {
+                    LOGGER.info("[errandstest] whole session transcript:\n{}", asked.sharedTranscript());
+                    asked.end(ControlledConversationSession.EndReason.COMPLETED);
+                }
                 LOGGER.info(bad == 0 ? "[errandstest] RESULT ok" : "[errandstest] RESULT FAILED " + bad);
                 LOGGER.info("[errandstest] DONE");
             }

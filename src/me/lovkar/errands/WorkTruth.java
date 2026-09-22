@@ -32,11 +32,23 @@ public final class WorkTruth {
     private WorkTruth() {
     }
 
-    /** The professions people ask for by the WORK rather than by the hut, and the hut that does it. */
+    /**
+     * The professions people ask for by the WORK rather than by the hut, and the hut that does it -
+     * by its <b>registry path</b>, because that is what {@link #standing} compares against.
+     *
+     * <p>This is the line that has to be right and was not. Chopping wood is done at the Forester's
+     * Hut, which MineColonies registers as {@code lumberjack}; written here as "forester" it
+     * matched no building in any colony, so every citizen in the game was told the colony had no
+     * workplace for chopping wood and that one would have to be built - with a Forester's Hut
+     * standing in front of him. That is the same false confidence the bug report was about, only
+     * pointing the other way, and it shipped inside the fix for it. {@code
+     * tools/check_buildings.py} now holds every value here against the installed MineColonies jar
+     * so it cannot come back.</p>
+     */
     private static final Map<String, String> BY_THE_WORK = new LinkedHashMap<>();
 
     static {
-        BY_THE_WORK.put("chopping wood", "forester");
+        BY_THE_WORK.put("chopping wood", "lumberjack");
         BY_THE_WORK.put("mining", "miner");
         BY_THE_WORK.put("farming", "farmer");
         BY_THE_WORK.put("fishing", "fisherman");
@@ -148,12 +160,13 @@ public final class WorkTruth {
     /** A built workplace of that type, or null. A hut still on the drawing board is not a workplace. */
     private static IBuilding standing(final IColony colony, final String type) {
         try {
+            final String want = ErrandBuildings.normalizeType(type);
             for (final IBuilding b : colony.getServerBuildingManager().getBuildings().values()) {
                 if (b.getBuildingLevel() <= 0) {
                     continue;
                 }
                 final var id = b.getBuildingType() == null ? null : b.getBuildingType().getRegistryName();
-                if (id != null && id.getPath().equals(type)) {
+                if (id != null && (id.getPath().equals(type) || id.getPath().equals(want))) {
                     return b;
                 }
             }

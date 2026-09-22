@@ -15,7 +15,7 @@ public final class ErrandBuildings {
     public static final List<String> BUILDING_TYPES = List.of(
             "cook", "miner", "farmer", "townhall", "barracks", "warehouse",
             "library", "school", "builder", "residence", "deliveryman", "tavern", "hospital",
-            "enchanter", "smeltery", "composter", "baker", "fisherman", "lumberjack", "shepherd",
+            "enchanter", "smeltery", "composter", "baker", "fisherman", "lumberjack", "forester", "shepherd",
             "cowboy", "graveyard", "plantation", "beekeeper", "mechanic", "sifter", "crusher",
             "netherworker", "florist", "archery", "combatacademy", "rabbithutch",
             "guardtower", "barrackstower", "gatehouse",
@@ -63,13 +63,50 @@ public final class ErrandBuildings {
             java.util.Map.entry("mason", "stonemason"),
             java.util.Map.entry("mine", "miner"),
             java.util.Map.entry("bakery", "baker"),
-            java.util.Map.entry("quarrier", "quarry"));
+            java.util.Map.entry("quarrier", "quarry"),
+            // The name on the hut is not the name in the registry, and 21 of MineColonies' 52 huts
+            // differ. The fuzzy display-name fallback in byCustomName rescued most of them, but it
+            // is a contains() on whatever three names a building happens to carry - not something
+            // to lean on - and WorkTruth reads the registry path straight, so for it these WERE
+            // broken. "Forester's Hut" is the one that matters most: it is registered lumberjack,
+            // and it is the hut the whole chop-wood bug report is about.
+            // tools/check_buildings.py holds this list to the installed MineColonies jar.
+            java.util.Map.entry("forester", "lumberjack"),
+            java.util.Map.entry("woodcutter", "lumberjack"),
+            java.util.Map.entry("cowhand", "cowboy"),
+            java.util.Map.entry("fisher", "fisherman"),
+            java.util.Map.entry("farm", "farmer"),
+            java.util.Map.entry("town hall", "townhall"),
+            java.util.Map.entry("dining hall", "cook"),
+            java.util.Map.entry("apiary", "beekeeper"),
+            java.util.Map.entry("nether mine", "netherworker"),
+            java.util.Map.entry("brick yard", "stonesmeltery"),
+            java.util.Map.entry("brickyard", "stonesmeltery"),
+            java.util.Map.entry("flower shop", "florist"),
+            java.util.Map.entry("mystical site", "mysticalsite"),
+            java.util.Map.entry("combat academy", "combatacademy"),
+            java.util.Map.entry("guard tower", "guardtower"),
+            java.util.Map.entry("barracks tower", "barrackstower"),
+            java.util.Map.entry("alchemist tower", "alchemist"),
+            java.util.Map.entry("enchanter's tower", "enchanter"),
+            java.util.Map.entry("enchanter tower", "enchanter"),
+            java.util.Map.entry("concrete mixer", "concretemixer"),
+            java.util.Map.entry("chef's kitchen", "kitchen"),
+            java.util.Map.entry("plantation field", "plantationfield"),
+            java.util.Map.entry("residence", "citizen"),
+            java.util.Map.entry("rabbit hutch", "rabbithutch"));
 
-    /** Lowercase, strip "'s hut"/" hut"/" building" suffixes, apply JOB_ALIASES. */
+    /**
+     * Lowercase, take a trailing "'s hut" / " hut" / " building" off, apply JOB_ALIASES.
+     *
+     * <p>The suffix is stripped at the END and nowhere else. Stripping " hut" wherever it appeared
+     * turned MineColonies' own <b>Rabbit Hutch</b> into "rabbitch", which matches nothing and never
+     * could - and a building the player can point at by name must be findable by that name.</p>
+     */
     public static String normalizeType(String raw) {
         if (raw == null) return null;
         String q = raw.trim().toLowerCase(java.util.Locale.ROOT);
-        q = q.replace("'s hut", "").replace(" hut", "").replace(" building", "").replace(" tower", " tower").trim();
+        q = q.replaceAll("(?:'s)?\\s+hut$", "").replaceAll("\\s+building$", "").trim();
         return JOB_ALIASES.getOrDefault(q, q);
     }
 

@@ -8,10 +8,13 @@ Talking Colonists gives your MineColonies citizens AI voices. Colonist Errands g
 conversations **consequences**: what you say to a colonist actually happens in the colony — and
 what a colonist tells you is checked against the colony's real state first.
 
-> **3.0.0-alpha.1** is Colonist Errands rebuilt on the **Talking Colonists 2.0 addon API** - it needs
-> Talking Colonists 2.0.0-alpha.2 or newer and does not load on 1.7.x (use 2.2.0 there). Same 42
+> **3.0.0-beta.1** is Colonist Errands rebuilt on the **Talking Colonists 2.0 addon API** - it needs
+> Talking Colonists 2.0.0-beta.1 or newer and does not load on 1.7.x (use 2.2.0 there). Same 42
 > tools, same prompt blocks, same promises and chats; huddles are real three-way conversations now.
-> Alpha, for dev instances (see the changelog).
+> It also fixes the two things the alphas found: a colonist asked to chop wood or go mining now says
+> what he can and cannot do instead of playing along, and huts whose label differs from their
+> registry name (the Forester's Hut is `lumberjack`, a Farm is `farmer`, a Residence is `citizen` -
+> 26 of the 52) are found by the name written on them (see the changelog).
 > **2.1.2** is 2.1.1 packaged properly - the 2.1.1 jar had broken ZIP headers and stopped the game
 > from starting ("invalid entry size" on the early loading screen); nothing in the code changed.
 > **2.1.1** fixes the colonist who stood under "Listening" all night and never went to bed - a
