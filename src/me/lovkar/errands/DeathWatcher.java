@@ -8,18 +8,21 @@ import com.minecolonies.api.colony.IColonyManager;
 import com.minecolonies.api.colony.buildings.IBuilding;
 import com.minecolonies.api.colony.colonyEvents.descriptions.IColonyEventDescription;
 import com.minecolonies.api.entity.citizen.AbstractEntityCitizen;
-import com.minecolonies.core.colony.buildings.workerbuildings.BuildingGraveyard;
 import com.minecolonies.core.colony.eventhooks.citizenEvents.CitizenBornEvent;
 import com.minecolonies.core.colony.eventhooks.citizenEvents.CitizenDiedEvent;
 import com.minecolonies.core.colony.eventhooks.citizenEvents.CitizenGrownUpEvent;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.InaccessibleObjectException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Lovkar's idea #26: the colony REACTS to death. Watches every colony's event
@@ -28,7 +31,11 @@ import java.util.Optional;
  *    about it in conversations on their own
  *  - two of them start a mourning chat right away (the chaperone keeps them
  *    together like any other c2c conversation)
- *  - a new grave at the graveyard = "laid to rest" memories near the graveyard
+ *  - a colonist buried at the graveyard = "laid to rest" memories near the graveyard
+ *
+ * The death and grave checks run every five seconds, so a failure in them is logged the first time
+ * only. The grave check reads MineColonies' graveyard bookkeeping by reflection and switches itself
+ * off (one line in the log) if that bookkeeping is not where it expects it - see checkGraves.
  */
 public final class DeathWatcher {
 
@@ -36,7 +43,14 @@ public final class DeathWatcher {
     }
 
     private static final Map<Integer, Integer> LAST_EVENT_COUNT = new HashMap<>();
-    private static final Map<BlockPos, Integer> LAST_GRAVE_COUNT = new HashMap<>();
+    /** Burials already seen per graveyard ("colonyId@x, y, z"), so only new ones get a reaction. */
+    private static final Map<String, Integer> LAST_BURIED = new HashMap<>();
+    /** The graveyard list field per module class; a null value = that module is not a graveyard's. */
+    private static final Map<Class<?>, Field> RESTING_FIELD = new HashMap<>();
+    /** Set when MineColonies does not keep its graves the way checkGraves expects; stays off, logged once. */
+    private static volatile boolean graveCheckOff = false;
+    /** Periodic failures already logged (what|exception class). */
+    private static final Set<String> WARNED = ConcurrentHashMap.newKeySet();
     private static long lastMourningChatMs = 0;
     private static final long MOURNING_CHAT_COOLDOWN_MS = 120_000;
 
@@ -89,7 +103,7 @@ public final class DeathWatcher {
                 }
             }
         } catch (Throwable t) {
-            ColonistErrands.LOGGER.warn("death check failed", t);
+            warnOnce("death check", t);
         }
     }
 
@@ -178,26 +192,88 @@ public final class DeathWatcher {
         }
     }
 
+    /**
+     * A colonist laid to rest at the graveyard. MineColonies keeps the name of everyone buried at a
+     * graveyard in that graveyard's management module (restingCitizen); a new name on that list is a
+     * new burial, and it tells us who it was.
+     *
+     * Read by reflection on purpose. 3.0.0-beta.1 called BuildingGraveyard.getGravePositions(), which
+     * MineColonies 1.1.1396 moved into GraveyardManagementModule - the compiled call no longer linked
+     * and the server log got a NoSuchMethodError every five seconds. (That method listed the grave
+     * SPOTS, which only change when the graveyard is upgraded, so it was also the wrong thing to
+     * count.) If the list is not where this expects it, the check turns itself off with one line in
+     * the log and the rest of the mod carries on.
+     */
     private static void checkGraves(IColony colony) {
+        if (graveCheckOff) {
+            return;
+        }
         try {
             for (IBuilding b : colony.getServerBuildingManager().getBuildings().values()) {
-                if (!(b instanceof BuildingGraveyard graveyard)) {
+                List<?> buried = buriedAt(b);
+                if (buried == null) {
                     continue;
                 }
-                int count = graveyard.getGravePositions().size();
-                Integer last = LAST_GRAVE_COUNT.get(graveyard.getPosition());
-                LAST_GRAVE_COUNT.put(graveyard.getPosition(), count);
+                BlockPos pos = b.getPosition();
+                int count = buried.size();
+                Integer last = LAST_BURIED.put(colony.getID() + "@" + pos.toShortString(), count);
                 if (last == null || count <= last) {
-                    continue;
+                    continue; // first sight of this graveyard (don't replay old burials) or nothing new
                 }
-                ColonistErrands.LOGGER.info("[Mourning] New grave at the graveyard ({} -> {})", last, count);
-                for (AbstractEntityCitizen c : pickCitizens(colony, graveyard.getPosition(), 48.0, 5)) {
-                    addMemory(c, "A fallen colonist was just laid to rest at the graveyard. You might pay "
+                Object newest = buried.get(count - 1);
+                String name = newest == null ? "" : newest.toString().trim();
+                ColonistErrands.LOGGER.info("[Mourning] {} was laid to rest at the graveyard",
+                        name.isEmpty() ? "A colonist" : name);
+                String who = name.isEmpty() ? "A fallen colonist" : name;
+                for (AbstractEntityCitizen c : pickCitizens(colony, pos, 48.0, 5)) {
+                    addMemory(c, who + " was just laid to rest at the graveyard. You might pay "
                             + "your respects or say a few words about them when you talk.");
                 }
             }
+        } catch (LinkageError | ReflectiveOperationException | InaccessibleObjectException
+                 | SecurityException | ClassCastException e) {
+            graveCheckOff = true;
+            ColonistErrands.LOGGER.warn("[Mourning] Graveyard reaction switched off - this MineColonies version "
+                    + "keeps its graves differently than expected ({}). Deaths, births and everything else "
+                    + "still work.", e.toString());
         } catch (Throwable t) {
-            ColonistErrands.LOGGER.warn("grave check failed", t);
+            warnOnce("grave check", t);
+        }
+    }
+
+    /** Names of the colonists buried at this building, or null when it is not a graveyard. */
+    private static List<?> buriedAt(IBuilding building) throws ReflectiveOperationException {
+        for (Object module : building.getModules()) {
+            if (module == null) {
+                continue;
+            }
+            Field f = restingField(module.getClass());
+            if (f != null) {
+                return f.get(module) instanceof List<?> names ? names : null;
+            }
+        }
+        return null;
+    }
+
+    private static Field restingField(Class<?> k) throws ReflectiveOperationException {
+        if (RESTING_FIELD.containsKey(k)) {
+            return RESTING_FIELD.get(k);
+        }
+        Field found = null;
+        for (Class<?> c = k; c != null && found == null; c = c.getSuperclass()) {
+            if (c.getSimpleName().equals("GraveyardManagementModule")) {
+                found = c.getDeclaredField("restingCitizen"); // gone = NoSuchFieldException = check off
+                found.setAccessible(true);
+            }
+        }
+        RESTING_FIELD.put(k, found);
+        return found;
+    }
+
+    /** A check that runs every five seconds logs a failure the first time, not every time. */
+    private static void warnOnce(String what, Throwable t) {
+        if (WARNED.add(what + "|" + t.getClass().getName())) {
+            ColonistErrands.LOGGER.warn("{} failed (logged once; the check keeps running)", what, t);
         }
     }
 
@@ -276,6 +352,8 @@ public final class DeathWatcher {
 
     public static void clearAll() {
         LAST_EVENT_COUNT.clear();
-        LAST_GRAVE_COUNT.clear();
+        LAST_BURIED.clear();
+        WARNED.clear();
+        graveCheckOff = false;
     }
 }

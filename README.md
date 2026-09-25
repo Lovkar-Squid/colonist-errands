@@ -8,6 +8,8 @@ Talking Colonists gives your MineColonies citizens AI voices. Colonist Errands g
 conversations **consequences**: what you say to a colonist actually happens in the colony — and
 what a colonist tells you is checked against the colony's real state first.
 
+> **3.0.0-beta.2** fixes the `grave check failed ... NoSuchMethodError` that beta.1 wrote to the log
+> every five seconds with MineColonies 1.1.1396 or newer, and burials now reach the colonists by name.
 > **3.0.0-beta.1** is Colonist Errands rebuilt on the **Talking Colonists 2.0 addon API** - it needs
 > Talking Colonists 2.0.0-beta.1 or newer and does not load on 1.7.x (use 2.2.0 there). Same 42
 > tools, same prompt blocks, same promises and chats; huddles are real three-way conversations now.

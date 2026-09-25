@@ -1,3 +1,26 @@
+# Colonist Errands 3.0.0-beta.2 — the graveyard check stops filling the server log
+
+With MineColonies 1.1.1396 or newer, 3.0.0-beta.1 wrote `grave check failed ... NoSuchMethodError:
+BuildingGraveyard.getGravePositions()` to the log every five seconds on any world with a graveyard.
+MineColonies moved its grave bookkeeping out of the graveyard building and into the graveyard's
+management module, and beta.1 was still built against the old place. The error was caught, so
+nothing crashed - but the log filled up and the colony's reaction to a burial did not work.
+
+**Burials are followed properly now.** The reaction reads the graveyard's own list of who is buried
+there, so the citizens nearby remember the colonist who was laid to rest by name. The old check
+counted grave spots, and those only change when the graveyard is upgraded - so it never really
+followed burials in the first place.
+
+**Old and new MineColonies both work.** If a later MineColonies moves this again, the graveyard
+check switches itself off with one line in the log instead of repeating an error every few seconds,
+and the death check logs a failure once instead of every time it runs.
+
+**Checked against what is actually installed.** Built against MineColonies 1.1.1396, Structurize
+1.0.833 and BlockUI 1.0.212. Every call Colonist Errands makes into MineColonies, Structurize,
+BlockUI, Exposure, Trade Post and Talking Colonists was checked against both the new versions and
+the previous ones, and the headless test colony now has a graveyard with a real burial in it - which
+is exactly the path beta.1's tests never walked. Nothing else changed.
+
 # Colonist Errands 3.0.0-beta.1 — the first public build on the Talking Colonists 2.0 API
 
 Talking Colonists 2.0.0-beta.1 is out, and this is Colonist Errands rebuilt on its addon API.

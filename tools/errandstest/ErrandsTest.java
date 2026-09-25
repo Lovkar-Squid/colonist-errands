@@ -38,6 +38,14 @@ import me.sshcrack.mc_talking.api.tool.AiCommandTool;
 import me.sshcrack.mc_talking.api.tool.AiQueryTool;
 import me.sshcrack.mc_talking.api.tool.AiTool;
 import me.sshcrack.mc_talking.api.tool.AiToolContext;
+import com.minecolonies.api.colony.GraveData;
+import com.minecolonies.api.colony.buildings.IBuilding;
+import com.minecolonies.api.tileentities.AbstractTileEntityColonyBuilding;
+import com.minecolonies.core.colony.buildings.modules.GraveyardManagementModule;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.IEventBus;
@@ -71,6 +79,10 @@ public class ErrandsTest {
     private ControlledConversationSession asked;
     private boolean secondAsked;
     private CompletableFuture<ControlledTurnResult> answer;
+    // the graveyard check (3.0.0-beta.2): a real graveyard, a real burial through MineColonies
+    private IBuilding graveyard;
+    private boolean buried;
+    private static final String BURIED_NAME = "Tobias Ashgrove";
 
     public ErrandsTest(final IEventBus bus) {
         NeoForge.EVENT_BUS.addListener(this::onTick);
@@ -151,6 +163,12 @@ public class ErrandsTest {
         LOGGER.info("[errandstest] colony {} ({} citizens): testing with {} and player {} (owner: {})", colony.getID(),
                 alive.size(), name(citizen), player.getGameProfile().getName(),
                 player.getUUID().equals(colony.getPermissions().getOwner()));
+        try {
+            graveyardSetUp(level);
+        } catch (final Throwable t) {
+            LOGGER.error("[errandstest] grave: could not set the graveyard up", t);
+            want("grave: a graveyard stands in the colony", false);
+        }
         // Talking Colonists 2.0.0-beta.1 re-resolves the player bound by addPlayerStatement through
         // PlayerList.getPlayer(uuid) before it starts the controlled session. A FakePlayer is not in
         // the player list, so that lookup decides whether a PLAYER_CONVERSATION tool can ever be
@@ -162,6 +180,12 @@ public class ErrandsTest {
 
     private void step(final ServerLevel level) throws Exception {
         phase++;
+        try {
+            graveStep(level);
+        } catch (final Throwable t) {
+            LOGGER.error("[errandstest] grave: step {} threw", phase, t);
+            want("grave: the graveyard steps run", false);
+        }
         switch (phase) {
             case 1 -> {
                 LOGGER.info("[errandstest] provider name for come_here: {}", ToolNames.providerName("come_here"));
@@ -343,6 +367,77 @@ public class ErrandsTest {
                 LOGGER.info("[errandstest] DONE");
             }
             default -> { }
+        }
+    }
+
+    // ------------------------------------------------------------------ the graveyard
+
+    /**
+     * 3.0.0-beta.1 read BuildingGraveyard.getGravePositions(), which MineColonies 1.1.1396 moved into
+     * GraveyardManagementModule: NoSuchMethodError every five seconds on every server with a
+     * graveyard, and this probe never saw it because its colony had none. Now it has one, and a
+     * colonist is buried in it the way the undertaker does it, so the mourning reaction is followed
+     * from MineColonies' own bookkeeping to a memory in a citizen's head.
+     */
+    private void graveyardSetUp(final ServerLevel level) {
+        final BlockPos at = citizen.blockPosition().offset(6, 0, 6);
+        level.setBlock(at, BuiltInRegistries.BLOCK.get(ResourceLocation.fromNamespaceAndPath("minecolonies", "blockhutgraveyard"))
+                .defaultBlockState(), 3);
+        if (level.getBlockEntity(at) instanceof AbstractTileEntityColonyBuilding hut) {
+            graveyard = colony.getServerBuildingManager().addNewBuilding(hut, level);
+        }
+        LOGGER.info("[errandstest] grave: graveyard at {}: {}", at, graveyard == null ? null : graveyard.getClass().getSimpleName());
+        want("grave: a graveyard stands in the colony", graveyard != null
+                && graveyard.getFirstModuleOccurance(GraveyardManagementModule.class) != null);
+    }
+
+    private void graveStep(final ServerLevel level) throws Exception {
+        if (graveyard == null) {
+            return;
+        }
+        if (phase == 4) {
+            // DeathWatcher has looked at the empty graveyard at least twice by now (it checks every
+            // 100 ticks), so the burial below is news to it, not history it skips.
+            final GraveyardManagementModule module = graveyard.getFirstModuleOccurance(GraveyardManagementModule.class);
+            final GraveData gd = new GraveData();
+            gd.setCitizenName(BURIED_NAME);
+            gd.setCitizenJobName("Farmer");
+            module.setLastGraveData(gd);
+            final BlockPos spot = graveyard.getPosition().offset(2, 0, 2);
+            buried = module.buryCitizenHere(new com.minecolonies.api.util.Tuple<>(spot, Direction.NORTH), citizen);
+            LOGGER.info("[errandstest] grave: {} buried at {}: {} (block now {})", BURIED_NAME, spot, buried,
+                    BuiltInRegistries.BLOCK.getKey(level.getBlockState(spot).getBlock()));
+            want("grave: MineColonies buried the colonist", buried && module.hasRestingCitizen(java.util.Set.of(BURIED_NAME)));
+        }
+        if (phase == 9) {
+            final Class<?> dw = Class.forName("me.lovkar.errands.DeathWatcher");
+            Object seen = null;
+            boolean off = true;
+            try {
+                final java.lang.reflect.Field f = dw.getDeclaredField("LAST_BURIED");
+                f.setAccessible(true);
+                seen = ((Map<?, ?>) f.get(null)).get(colony.getID() + "@" + graveyard.getPosition().toShortString());
+                final java.lang.reflect.Field o = dw.getDeclaredField("graveCheckOff");
+                o.setAccessible(true);
+                off = o.getBoolean(null);
+            } catch (final NoSuchFieldException e) {
+                LOGGER.info("[errandstest] grave: this Colonist Errands has no burial bookkeeping ({})", e.getMessage());
+            }
+            LOGGER.info("[errandstest] grave: DeathWatcher counts {} burial(s) here, check switched off: {}", seen, off);
+            want("grave: DeathWatcher saw the burial", Integer.valueOf(1).equals(seen));
+            want("grave: the grave check is still on", !off);
+            boolean remembers = false;
+            final var snap = CitizenMemoryService.snapshot(citizen.getCitizenData());
+            if (snap.isPresent()) {
+                for (final Object ev : snap.get().events()) {
+                    final String text = String.valueOf(ev);
+                    if (text.contains(BURIED_NAME) && text.contains("laid to rest")) {
+                        remembers = true;
+                        LOGGER.info("[errandstest] grave: {} remembers: {}", name(citizen), text);
+                    }
+                }
+            }
+            want("grave: a citizen by the graveyard remembers who was laid to rest", remembers);
         }
     }
 
