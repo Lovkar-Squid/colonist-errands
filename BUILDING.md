@@ -64,6 +64,18 @@ it against `build/` and drop it into the test server's `mods/` next to the Erran
 `[errandstest] DONE` when it got through. Without a Gemini key the conversations fail at the
 provider, which is expected - the test is about the plumbing.
 
+### Chunk-load probe for the evening bed check
+
+`tools/bedchurn/` is a second test mod, for one question only: does the evening bed check load
+chunks of a colony that is not in memory? It builds a colony far from the spawn with a Residence
+whose registered beds stand in four other chunks (one of the entries points at nothing), waits until
+all of it has dropped out of memory, makes it dusk and counts the chunk loads - then holds the
+colony in memory, makes it dusk the next day and checks the scan still repairs what it should.
+`tools/bedchurn/build.sh` builds it, `tools/bedchurn/run.sh <colonist_errands jar>` runs it on a
+throw-away flat-world server (it expects a NeoForge 21.1 server directory with the dependency jars,
+see the paths at the top of the script) and prints `[bedchurn] RESULT ...` lines. With 3.0.0-beta.2
+the first evening loads four chunks and drops them three ticks later; with 3.0.0-beta.3 it loads none.
+
 ## Notes for porting to new dependency versions
 
 Since 3.0 everything Talking Colonists-side goes through its addon API (`me.sshcrack.mc_talking.api`,

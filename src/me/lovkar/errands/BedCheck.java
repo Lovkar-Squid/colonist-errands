@@ -57,6 +57,35 @@ public final class BedCheck {
     private BedCheck() {
     }
 
+    /**
+     * True when the chunk holding this block is already in memory.
+     * <p>
+     * Reading a block out of a chunk that is NOT loaded makes the game load that chunk on the
+     * spot and drop it again a couple of ticks later. On a server nobody is standing on,
+     * MineColonies stops holding its colonies loaded after a while - and a scan that walks every
+     * bed of every colony then loads and drops some thirty chunks (stable horses and all) once
+     * per game evening, every twenty real minutes, for nothing. A colony that is not loaded has
+     * nobody to read the warnings and nobody lying in those beds, so it is simply left alone and
+     * looked at on an evening when somebody is there.
+     */
+    private static boolean loaded(Level level, BlockPos pos) {
+        return level.hasChunkAt(pos);
+    }
+
+    /** True when at least one colony has its centre in memory, i.e. somebody is near or it is held loaded. */
+    private static boolean anyColonyLoaded() {
+        try {
+            for (IColony colony : IColonyManager.getInstance().getAllColonies()) {
+                Level level = colony.getWorld();
+                if (level != null && loaded(level, colony.getCenter())) {
+                    return true;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return false;
+    }
+
     /** One resident who will not get into a bed tonight, and why. */
     public static final class Problem {
         public final String citizen;
@@ -127,10 +156,16 @@ public final class BedCheck {
                     if (!hut.hasModule(BuildingModules.BED) || building.contains(hut.getPosition())) {
                         continue;
                     }
+                    if (!loaded(level, hut.getPosition())) {
+                        continue; // not in memory - reading its beds would load the chunk just to drop it again
+                    }
                     BedHandlingModule beds = hut.getModule(BuildingModules.BED);
                     List<BlockPos> registered = new ArrayList<>(beds.getRegisteredBlocks());
                     java.util.Set<BlockPos> seen = new java.util.HashSet<>();
                     for (BlockPos pos : registered) {
+                        if (!loaded(level, pos)) {
+                            continue; // a bed in a chunk that is not in memory is left alone, never judged "gone"
+                        }
                         BlockState state = level.getBlockState(pos);
                         if (!state.is(BlockTags.BEDS)) {
                             beds.removeBed(pos);
@@ -184,6 +219,9 @@ public final class BedCheck {
     private static int registerMissingBeds(IBuilding hut, BedHandlingModule beds, Level level) {
         int added = 0;
         try {
+            if (!loaded(level, hut.getPosition())) {
+                return 0;
+            }
             AbstractAssignedCitizenModule living = hut.getFirstModuleOccurance(AbstractAssignedCitizenModule.class);
             if (living == null) {
                 return 0;
@@ -218,6 +256,9 @@ public final class BedCheck {
                 for (int z = z0; z <= z1 && added < sleepers - registered.size(); z++) {
                     for (int y = y0; y <= y1 && added < sleepers - registered.size(); y++) {
                         cursor.set(x, y, z);
+                        if (!loaded(level, cursor)) {
+                            continue;
+                        }
                         BlockState st = level.getBlockState(cursor);
                         if (!st.is(BlockTags.BEDS) || !st.getValue(BedBlock.PART).equals(BedPart.HEAD)) {
                             continue;
@@ -303,6 +344,16 @@ public final class BedCheck {
                 }
                 try {
                     List<BlockPos> beds = new ArrayList<>(hosp.getBedList());
+                    boolean inMemory = loaded(level, b.getPosition());
+                    for (BlockPos pos : beds) {
+                        if (!loaded(level, pos) || !loaded(level, pos.above())) {
+                            inMemory = false;
+                            break;
+                        }
+                    }
+                    if (!inMemory) {
+                        continue; // half of it unloaded would give a false "no usable bed" - look another evening
+                    }
                     int usable = 0;
                     List<String> blocked = new ArrayList<>();
                     for (BlockPos pos : beds) {
@@ -428,7 +479,7 @@ public final class BedCheck {
             boolean night = timeOfDay >= 11000L;
             List<Problem> found = new ArrayList<>();
             // The bed-and-index scan bites once, in the evening.
-            if (night && timeOfDay <= 13500L && lastScanDay != day) {
+            if (night && timeOfDay <= 13500L && lastScanDay != day && anyColonyLoaded()) {
                 lastScanDay = day;
                 BY_CITIZEN.clear();
                 for (IColony colony : IColonyManager.getInstance().getAllColonies()) {
@@ -596,6 +647,9 @@ public final class BedCheck {
      */
     private static String bedTrouble(Level level, BlockPos pos) {
         try {
+            if (!loaded(level, pos) || !loaded(level, pos.above())) {
+                return null; // not in memory: nothing to judge, and nothing to load for it
+            }
             BlockState state = level.getBlockState(pos);
             if (!state.is(BlockTags.BEDS)) {
                 return "is not a bed any more - the block is gone";

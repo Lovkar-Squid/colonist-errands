@@ -1,0 +1,20 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="MIT"
+[[mods]]
+modId="bedchurn"
+version="1.0.0"
+displayName="Colonist Errands bed-check chunk probe"
+description="Headless test: does the evening bed check load chunks of a colony nobody is near?"
+[[dependencies.bedchurn]]
+modId="colonist_errands"
+type="required"
+versionRange="*"
+ordering="AFTER"
+side="SERVER"
+[[dependencies.bedchurn]]
+modId="minecolonies"
+type="required"
+versionRange="*"
+ordering="AFTER"
+side="SERVER"

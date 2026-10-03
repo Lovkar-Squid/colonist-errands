@@ -1,3 +1,29 @@
+# Colonist Errands 3.0.0-beta.3 — the bed check stops waking colonies nobody is near
+
+On a server nobody is standing on, MineColonies stops holding its colonies loaded after a while.
+The evening bed check did not know that. Once every game evening - every twenty real minutes - it
+walked every registered bed of every colony, and reading a block out of a chunk that is not loaded
+makes the game load that chunk on the spot and drop it again a couple of ticks later. So an empty
+server loaded and dropped some thirty chunks around each colony every twenty minutes, for nothing.
+Nothing broke, but the disk was busy for no reason and anything that logs chunk unloads filled the
+log with it - MineColonies 1.1.1403's cavalry-horse debug line (`CavHorse left level ... reason=null`,
+with a full stack trace) every twenty minutes, around the clock, for each horse standing in a
+stable that got loaded that way.
+
+**The bed check only looks at what is already loaded.** Every block it reads is checked against the
+loaded chunks first, and the evening scan does not even start unless at least one colony's centre
+is in memory. A bed in a chunk that is not loaded is never judged "gone" and never repaired; it is
+looked at on an evening when somebody is there. With players near a colony nothing changes - beds
+are repaired and reported the same way as before.
+
+**Nothing else changed.** The other checks read citizens that are already in the world, not blocks,
+so they never loaded anything.
+
+Checked on a headless test server (MineColonies 1.1.1403, `tools/bedchurn`): with a colony out of
+memory at dusk, 3.0.0-beta.2 loaded four chunks and dropped them three ticks later, 3.0.0-beta.3
+loads none; and once the colony is held in memory, 3.0.0-beta.3 still drops a registered bed that
+is gone, as before.
+
 # Colonist Errands 3.0.0-beta.2 — the graveyard check stops filling the server log
 
 With MineColonies 1.1.1396 or newer, 3.0.0-beta.1 wrote `grave check failed ... NoSuchMethodError:
