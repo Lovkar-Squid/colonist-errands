@@ -1,3 +1,25 @@
+# Colonist Errands 3.0.0 — out of beta
+
+The 3.0 line is done. 3.0.0 is the same code as 3.0.0-beta.3, released as a full version: since the
+beta went out on 3 October nobody has reported a new bug, and the build was checked again against
+the versions people play with now.
+
+**What 3.0 is, if you are coming from 2.x:** Colonist Errands rebuilt on the Talking Colonists 2.0
+addon API. It needs Talking Colonists 2.0.0-beta.1 or newer (2.1.x works) and does not load on 1.7.x;
+stay on 2.2.0 there. Same 42 tools, same prompt blocks, same promises and chats, and huddles are
+real three-way conversations now. Everything the three betas fixed is in it:
+
+- a colonist asked to chop wood or go mining says what he can and cannot do instead of playing along;
+- huts whose label differs from their registry name (the Forester's Hut is `lumberjack`, a Farm is
+  `farmer`, a Residence is `citizen`) are found by the name written on them;
+- burials reach the colonists by name, and the `grave check failed ... NoSuchMethodError` log spam
+  with MineColonies 1.1.1396 or newer is gone;
+- the evening bed check no longer loads and drops chunks of colonies nobody is near.
+
+Checked on a headless test server with MineColonies 1.1.1420 and Talking Colonists 2.1.0-beta.2:
+the full tool registry, the prompt contributor (from the server thread and a background thread),
+memories, a pair chat, a controlled session and the graveyard check all go through.
+
 # Colonist Errands 3.0.0-beta.3 — the bed check stops waking colonies nobody is near
 
 On a server nobody is standing on, MineColonies stops holding its colonies loaded after a while.

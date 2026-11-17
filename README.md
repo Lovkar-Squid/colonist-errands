@@ -8,6 +8,8 @@ Talking Colonists gives your MineColonies citizens AI voices. Colonist Errands g
 conversations **consequences**: what you say to a colonist actually happens in the colony — and
 what a colonist tells you is checked against the colony's real state first.
 
+> **3.0.0** is the full release of the 3.0 line: the same code as 3.0.0-beta.3, with no new bug reports
+> since it came out. It needs Talking Colonists 2.0.0-beta.1 or newer (2.1.x works).
 > **3.0.0-beta.3** stops the evening bed check from loading chunks of colonies nobody is near - on an
 > empty server it loaded and dropped some thirty chunks every twenty minutes, and anything that logs
 > chunk unloads (MineColonies' cavalry-horse debug line, for one) filled the log with it.
